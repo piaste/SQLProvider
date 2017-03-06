@@ -33,6 +33,15 @@ module internal QueryImplementation =
     let (|SourceWithQueryData|_|) = function Constant ((:? IWithSqlService as org), _)    -> Some org | _ -> None
     let (|RelDirection|_|)        = function Constant ((:? RelationshipDirection as s),_) -> Some s   | _ -> None
 
+    let closeConnection (provider : ISqlProvider) (con : IDbConnection) = 
+        #if NO_MS_ACCESS
+            con.Close()
+        #else  
+            match provider with
+            | :? Providers.MSAccessProvider -> ()  //else get 'COM object that has been separated from its underlying RCW cannot be used.'
+            | _ -> con.Close()
+        #endif
+
     let parseQueryResults (projector:Delegate) (results:SqlEntity[]) =
         let args = projector.GetType().GenericTypeArguments
         seq { 
@@ -75,7 +84,7 @@ module internal QueryImplementation =
         use reader = cmd.ExecuteReader()
         let results = dc.ReadEntities(baseTable.FullName, columns, reader)
         let results = parseQueryResults projector results
-        if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close() //else get 'COM object that has been separated from its underlying RCW cannot be used.'
+        closeConnection provider con
         results
 
     let executeQueryAsync (dc:ISqlDataContext) (provider:ISqlProvider) sqlExp ti =
@@ -93,7 +102,7 @@ module internal QueryImplementation =
            use! reader = cmd.ExecuteReaderAsync() |> Async.AwaitTask
            let! results = dc.ReadEntitiesAsync(baseTable.FullName, columns, reader)
            let results = parseQueryResults projector results
-           if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close() //else get 'COM object that has been separated from its underlying RCW cannot be used.'
+           closeConnection provider con
            return results
        }
 
@@ -107,7 +116,7 @@ module internal QueryImplementation =
        // ignore any generated projection and just expect a single integer back
        if con.State <> ConnectionState.Open then con.Open()
        let result = cmd.ExecuteScalar()
-       if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close() //else get 'COM object that has been separated from its underlying RCW cannot be used.'
+       closeConnection provider con
        result
 
     let executeQueryScalarAsync (dc:ISqlDataContext) (provider:ISqlProvider) sqlExp ti =
@@ -122,7 +131,7 @@ module internal QueryImplementation =
            if con.State <> ConnectionState.Open then
                 do! con.OpenAsync() |> Async.AwaitIAsyncResult |> Async.Ignore
            let! executed = cmd.ExecuteScalarAsync() |> Async.AwaitTask
-           if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close() //else get 'COM object that has been separated from its underlying RCW cannot be used.'
+           closeConnection provider con
            return executed
        }
 

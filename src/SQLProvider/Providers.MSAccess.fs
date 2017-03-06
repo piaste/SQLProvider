@@ -184,7 +184,8 @@ type internal MSAccessProvider() =
             if con.State <> ConnectionState.Open then con.Open()
             let con = con:?>OleDbConnection
             let tables =
-                con.GetSchema("Tables").AsEnumerable()
+                con.GetSchema("Tables").Rows
+                |> Seq.cast<DataRow>
                 |> Seq.filter (fun row -> ["TABLE";"VIEW";"LINK"] |> List.exists (fun typ -> typ = row.["TABLE_TYPE"].ToString())) // = "TABLE" || row.["TABLE_TYPE"].ToString() = "VIEW" || row.["TABLE_TYPE"].ToString() = "LINK")  //The text file specification 'A Link Specification' does not exist. You cannot import, export, or link using the specification.
                 |> Seq.map (fun row -> let table ={ Schema = Path.GetFileNameWithoutExtension(con.DataSource); Name = row.["TABLE_NAME"].ToString() ; Type=row.["TABLE_TYPE"].ToString() }
                                        tableLookup.GetOrAdd(table.FullName,table)
@@ -203,13 +204,15 @@ type internal MSAccessProvider() =
             | _ ->
                 if con.State <> ConnectionState.Open then con.Open()
                 let pks =
-                    (con:?>OleDbConnection).GetSchema("Indexes",[|null;null;null;null;table.Name.Replace("\"", "")|]).AsEnumerable()
+                    (con:?>OleDbConnection).GetSchema("Indexes",[|null;null;null;null;table.Name.Replace("\"", "")|]).Rows                  
+                    |> Seq.cast<DataRow>
                     |> Seq.filter (fun idx ->  bool.Parse(idx.["PRIMARY_KEY"].ToString()))
                     |> Seq.map (fun idx -> idx.["COLUMN_NAME"].ToString())
                     |> Seq.toList
 
                 let columns =
-                    (con:?>OleDbConnection).GetSchema("Columns",[|null;null;table.Name.Replace("\"", "");null|]).AsEnumerable()
+                    (con:?>OleDbConnection).GetSchema("Columns",[|null;null;table.Name.Replace("\"", "");null|]).Rows
+                    |> Seq.cast<DataRow>
                     |> Seq.map (fun row ->
                         match row.["DATA_TYPE"].ToString() |> findDbType with
                         |Some(m) ->
@@ -235,7 +238,7 @@ type internal MSAccessProvider() =
           relationshipLookup.GetOrAdd(table.FullName, fun name ->
             if con.State <> ConnectionState.Open then con.Open()
             let rels =
-                (con:?>OleDbConnection).GetOleDbSchemaTable(OleDbSchemaGuid.Foreign_Keys,[|null|]).AsEnumerable()
+                (con:?>OleDbConnection).GetOleDbSchemaTable(OleDbSchemaGuid.Foreign_Keys,[|null|]).Rows |> Seq.cast<DataRow>
             let children = rels |> Seq.filter (fun r -> r.["PK_TABLE_NAME"].ToString() = table.Name)
                                 |> Seq.map    (fun r -> let pktableName = table.FullName
                                                         let fktableName = sprintf "[%s].[%s]" table.Schema  (r.["FK_TABLE_NAME"].ToString())

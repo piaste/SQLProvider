@@ -242,7 +242,9 @@ type SqlEntity(dc: ISqlDataContext, tableName, columns: ColumnLookup) =
 
     interface System.ComponentModel.INotifyPropertyChanged with
         [<CLIEvent>] member __.PropertyChanged = propertyChanged.Publish
-
+        
+#if NO_ICUSTOMTYPEDESCRIPTOR
+#else
     interface System.ComponentModel.ICustomTypeDescriptor with
         member e.GetComponentName() = TypeDescriptor.GetComponentName(e,true)
         member e.GetDefaultEvent() = TypeDescriptor.GetDefaultEvent(e,true)
@@ -270,6 +272,8 @@ type SqlEntity(dc: ISqlDataContext, tableName, columns: ColumnLookup) =
                                  override __.ResetValue(_) = ()
                                  override __.ShouldSerializeValue(_) = false })
                |> Seq.cast<PropertyDescriptor> |> Seq.toArray )
+#endif
+
 
 and ResultSet = seq<(string * obj)[]>
 and ReturnSetType =

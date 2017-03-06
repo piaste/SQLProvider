@@ -20,8 +20,14 @@ module internal ProviderBuilder =
         | DatabaseProviderTypes.POSTGRESQL -> PostgresqlProvider(resolutionPath, owner, referencedAssemblies) :> ISqlProvider
         | DatabaseProviderTypes.MYSQL -> MySqlProvider(resolutionPath, owner, referencedAssemblies) :> ISqlProvider
         | DatabaseProviderTypes.ORACLE -> OracleProvider(resolutionPath, owner, referencedAssemblies, tableNames) :> ISqlProvider
+#if NO_MS_ACCESS
+#else
         | DatabaseProviderTypes.MSACCESS -> MSAccessProvider() :> ISqlProvider
+#endif
+#if NO_ODBC
+#else
         | DatabaseProviderTypes.ODBC -> OdbcProvider(odbcquote) :> ISqlProvider
+#endif
         | _ -> failwith ("Unsupported database provider: " + vendor.ToString())
 
 type public SqlDataContext (typeName,connectionString:string,providerType,resolutionPath, referencedAssemblies, runtimeAssembly, owner, caseSensitivity, tableNames, odbcquote, sqliteLibrary) =
@@ -39,7 +45,7 @@ type public SqlDataContext (typeName,connectionString:string,providerType,resolu
                 // the minimum base set of data available
                 prov.CreateTypeMappings(con)
                 prov.GetTables(con,caseSensitivity) |> ignore
-                if (providerType.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close()
+                QueryImplementation.closeConnection prov con
                 prov)
 
     interface ISqlDataContext with
@@ -128,7 +134,7 @@ type public SqlDataContext (typeName,connectionString:string,providerType,resolu
                             entity.SetColumnSilent(name, data)
                     entity |> box
 
-            if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close()
+            QueryImplementation.closeConnection provider con
             entities
 
         member this.GetIndividual(table,id) : SqlEntity =
@@ -150,7 +156,7 @@ type public SqlDataContext (typeName,connectionString:string,providerType,resolu
             if con.State <> ConnectionState.Open then con.Open()
             use reader = com.ExecuteReader()
             let entity = (this :> ISqlDataContext).ReadEntities(table.FullName, columns, reader) |> Seq.exactlyOne
-            if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close()
+            QueryImplementation.closeConnection provider con
             entity
 
         member this.ReadEntities(name: string, columns: ColumnLookup, reader: IDataReader) =

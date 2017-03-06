@@ -121,8 +121,11 @@ module internal Utilities =
             elif returnType = typeof<DateTime> then Convert.ToDateTime itm |> box
             elif returnType = typeof<Boolean> then Convert.ToBoolean itm |> box
             else itm |> box
-
+            
 module ConfigHelpers = 
+#if NO_APP_CONFIG
+    let tryGetConnectionString _ _ _ (connectionString:string) = connectionString
+#else
     
     open System
     open System.IO
@@ -167,6 +170,8 @@ module ConfigHelpers =
                     let fromFile = getConStringFromConfig isRuntime root connectionStringName
                     fromFile)
         else connectionString
+
+#endif
 
 module internal SchemaProjections = 
     
