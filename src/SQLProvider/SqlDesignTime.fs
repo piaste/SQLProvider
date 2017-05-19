@@ -360,16 +360,19 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                 ct.AddMembersDelayed( fun () -> 
                     // creation methods.
                     // we are forced to load the columns here, but this is ok as the user has already 
-                    // pressed . on an IQueryable type so they are obviously interested in using this entity..
-                    let columns,_ = getTableData key 
-                    let (_,columns) =
-                        columns |> Seq.map (fun kvp -> kvp.Value)
-                                |> Seq.toList
-                                |> List.partition(fun c->c.IsNullable || c.IsPrimaryKey)
+                    // pressed . on an IQueryable type so they are obviously interested in using this entity..                    
+                    let columns, _ = getTableData key
+
+                    let requiredColumns =
+                        columns
+                        |> Seq.map (fun kvp -> kvp.Value)
+                        |> Seq.filter (fun c-> c.IsPrimaryKey || (not c.IsNullable))
+
                     let normalParameters = 
-                        columns 
-                        |> List.map(fun c -> ProvidedParameter(c.Name,Type.GetType c.TypeMapping.ClrType))
-                        |> List.sortBy(fun p -> p.Name)
+                        requiredColumns 
+                        |> Seq.map(fun c -> ProvidedParameter(c.Name,Type.GetType c.TypeMapping.ClrType))
+                        |> Seq.sortBy(fun p -> p.Name)
+                        |> Seq.toList
                     
                     // Create: unit -> SqlEntity 
                     let create1 = ProvidedMethod("Create", [], entityType, InvokeCode = fun args ->                         
@@ -412,7 +415,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                               e 
                           @@>)
                     let desc3 = 
-                        let cols = columns |> Seq.map(fun c -> c.Name)
+                        let cols = requiredColumns |> Seq.map(fun c -> c.Name)
                         "Item array of database columns: \r\n" + String.Join(",", cols)
                     create3.AddXmlDoc (sprintf "<summary>%s</summary>" desc3)
 
