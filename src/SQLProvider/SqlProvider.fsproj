@@ -28,9 +28,8 @@
     <DocumentationFile>
     </DocumentationFile>
     <StartAction>Program</StartAction>
-    <StartProgram>..\..\..\..\postgrestest\postgrestest\postgrestest\bin\Debug\postgrestest.exe</StartProgram>
-    <StartArguments>
-    </StartArguments>
+    <StartProgram>C:\Program Files (x86)\Microsoft SDKs\F#\4.1\Framework\v4.0\fsi.exe</StartProgram>
+    <StartArguments>--exec D:\ESPERIMENTI\SQLProvider\SQLProvider\tests\SqlProvider.Tests\scripts\PostgreSQLTests.fsx</StartArguments>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>

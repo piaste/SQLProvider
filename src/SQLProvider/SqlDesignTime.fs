@@ -168,7 +168,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                          | FixedType pkValue -> 
                             
                             let tableName = table.FullName
-                            let getterCode (args : Expr list) = <@@ ((%%args.[0] : obj) :?> ISqlDataContext).GetIndividual(tableName, pkValue) @@> 
+                            let getterCode (args : Expr list) = <@@ ((%%args.[0] : obj) :?> ISqlDataContext).GetIndividual(tableName, pkValue) @@>                             
 
                             // this next bit is just side effect to populate the "As Column" types for the supported columns
                             for colName, colValue in e.ColumnValues do                                         

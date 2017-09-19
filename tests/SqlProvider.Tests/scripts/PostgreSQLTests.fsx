@@ -6,7 +6,7 @@ open FSharp.Data.Sql
 open System.Data
 
 [<Literal>]
-let connStr = " User ID=postgres;Host=192.168.99.100;Port=32768;Database=postgres;"
+let connStr = "User ID=admin;Host=192.168.30.200;Port=9004;Database=test;Password=zd;"
 
 [<Literal>]
 let resolutionPath = __SOURCE_DIRECTORY__ + "/../../../packages/scripts/Npgsql/lib/net45"
@@ -32,8 +32,32 @@ type Department = {
 }
 
 //***************** Individuals ***********************//
-let indv = ctx.Public.Employees.Individuals.``As FirstName``.``100, Steven``
-printfn "%s %s (%s)" indv.FirstName.Value indv.LastName indv.Email
+// let h = ctx.Public.Employees.Individuals.``[|7M; 8M; 9M|]``
+
+let f = ctx.Public.Employees.Create() 
+f.SalaryHistory <- array2D [| [|1M|]; [|2M|]; [| decimal (DateTime.Now.Millisecond) |] |]
+f.JobId <- "AD_PRES"
+f.LastName <- "bard"
+f.EmployeeId <- 767868
+f.Email <-  string (DateTime.Now.Millisecond) + "a2sdsdaas@gmail.com"
+f.HireDate <- DateTime.MinValue
+ctx.SubmitUpdates()
+
+let indv = ctx.Public.Employees.Individuals.``As FirstName``.``[[180.2300M; 810.2000M; 94.6300M; 373.7300M; 686.0300M; 198.6800M; 976.8700M;  383.3900M; 331.5200M; 827.3000M; 746.4900M; 622.7700M] [568.7500M; 950.0700M; 879.2300M; 131.8000M; 140.5900M; 628.7700M; 808M;  923.9700M; 555.8400M; 319.8000M; 745.0700M; 895.5100M] [914.5200M; 605.5300M; 133.5000M; 498.6900M; 796.9100M; 555.3100M; 246.7400M;  247.4400M; 344.4500M; 1.2800M; 664.8800M; 182.1900M] [179.9900M; 306.0100M; 544.0500M; 6.2500M; 960.1100M; 670.5600M; 97.9300M;  144.0600M; 181.9300M; 839.4800M; 314.2800M; 221.3500M]], William``
+// printfn "%s %s (%s)" indv.FirstName.Value indv.LastName indv.Email
+
+
+// f.Delete()
+// ctx.SubmitUpdates()
+
+//"foo@gmail.com", 123232, DateTime.Now, "AD_PRES", "bard", array2D [| [| 1M |] |])
+
+//b.SalaryHistory <- array2D [| [| 1M |] |]
+//b.EmployeeId <- 123232314
+// let h2 = ctx.Public.Employees.Individuals.``[[25.4800M; 527.3500M; 23.0400M; 704.8400M; 681.7100M; 642.1700M; 144.4900M;  795.4400M; 754.5600M; 10.0400M; 924.6700M; 635.4500M] [582.4400M; 413.0500M; 864.1800M; 826.3000M; 601.1700M; 115.2900M; 89.9600M;  690.1500M; 604.3500M; 821.0400M; 731.5900M; 390.8800M] [323.5200M; 872.4000M; 491.0800M; 64.3800M; 909.3700M; 833.7700M; 504.1500M;  685.1200M; 612.9000M; 658.9300M; 159.8500M; 592.3800M] [278.7200M; 114.4800M; 271.0800M; 337.3800M; 17.8700M; 269.4400M; 617.8000M;  798.5200M; 699.6500M; 447.4800M; 86.9800M; 569.7800M]]``
+
+
+FSharp.Data.Sql.Common.QueryEvents.SqlQueryEvent |> Event.add (printfn "Executing SQL: %O")
 
 //*************** QUERY ************************//
 
@@ -103,14 +127,14 @@ let salesNamedDavid =
             select (d.DepartmentName, emp.FirstName, emp.LastName)
     } |> Seq.toList
 
-let employeesJob =
-    query {
-            for emp in ctx.Public.Employees do
-            for manager in emp.``public.employees by employee_id_1`` do
-            join dept in ctx.Public.Departments on (emp.DepartmentId = Some(dept.DepartmentId))
-            where ((dept.DepartmentName |=| [|"Sales";"Executive"|]) && emp.FirstName =% "David")
-            select (emp.FirstName, emp.LastName, manager.FirstName, manager.LastName )
-    } |> Seq.toList
+//let employeesJob =
+//    query {
+//            for emp in ctx.Public.Employees do
+//            for manager in emp.
+//            join dept in ctx.Public.Departments on (emp.DepartmentId = Some(dept.DepartmentId))
+//            where ((dept.DepartmentName |=| [|"Sales";"Executive"|]) && emp.FirstName =% "David")
+//            select (emp.FirstName, emp.LastName, manager.FirstName, manager.LastName )
+//    } |> Seq.toList
 
 //Can map SQLEntities to a domain type
 let topSales5ByCommission =
@@ -193,6 +217,9 @@ ctx.SubmitUpdates()
 
 antartica.Delete()
 ctx.SubmitUpdates()
+
+let x = ctx.Public.Regions.Individuals.``1``
+printf "%A" x.RegionAlternateNames
 
 //********************** Procedures **************************//
 
