@@ -218,63 +218,63 @@ ctx.SubmitUpdates()
 antartica.Delete()
 ctx.SubmitUpdates()
 
-let x = ctx.Public.Regions.Individuals.``1``
-printf "%A" x.RegionAlternateNames
+//let x = ctx.Public.Regions.Individuals.``1``
+//printf "%A" x.RegionAlternateNames
 
-//********************** Procedures **************************//
+////********************** Procedures **************************//
 
-let removeIfExists employeeId startDate =
-    let existing = query { for x in ctx.Public.JobHistory do
-                           where ((x.EmployeeId = employeeId) && (x.StartDate = startDate))
-                           headOrDefault }
-    if existing <> null then
-        existing.Delete()
-        ctx.SubmitUpdates()
+//let removeIfExists employeeId startDate =
+//    let existing = query { for x in ctx.Public.JobHistory do
+//                           where ((x.EmployeeId = employeeId) && (x.StartDate = startDate))
+//                           headOrDefault }
+//    if existing <> null then
+//        existing.Delete()
+//        ctx.SubmitUpdates()
 
-removeIfExists 100 (DateTime(1993, 1, 13))
-ctx.Functions.AddJobHistory.Invoke(100, DateTime(1993, 1, 13), DateTime(1998, 7, 24), "IT_PROG", 60)
+//removeIfExists 100 (DateTime(1993, 1, 13))
+//ctx.Functions.AddJobHistory.Invoke(100, DateTime(1993, 1, 13), DateTime(1998, 7, 24), "IT_PROG", 60)
 
-//Support for sprocs that return ref cursors
-let employees =
-    [
-      for e in ctx.Functions.GetEmployees.Invoke().ReturnValue do
-        yield e.MapTo<Employee>()
-    ]
+////Support for sprocs that return ref cursors
+//let employees =
+//    [
+//      for e in ctx.Functions.GetEmployees.Invoke().ReturnValue do
+//        yield e.MapTo<Employee>()
+//    ]
 
-type Region = {
-    RegionId : decimal
-    RegionName : string
-  //  RegionDescription : string
-}
+//type Region = {
+//    RegionId : decimal
+//    RegionName : string
+//  //  RegionDescription : string
+//}
 
-//Support for MARS procs
-let locations_and_regions =
-    let results = ctx.Functions.GetLocationsAndRegions.Invoke()
-    [
-      for e in results.ReturnValue do
-        yield e.ColumnValues |> Seq.toList |> box
-      for e in results.ReturnValue do
-        yield e.ColumnValues |> Seq.toList |> box
-    ]
+////Support for MARS procs
+//let locations_and_regions =
+//    let results = ctx.Functions.GetLocationsAndRegions.Invoke()
+//    [
+//      for e in results.ReturnValue do
+//        yield e.ColumnValues |> Seq.toList |> box
+//      for e in results.ReturnValue do
+//        yield e.ColumnValues |> Seq.toList |> box
+//    ]
 
-//Support for sprocs that return ref cursors and has in parameters
-let getemployees hireDate =
-    let results = (ctx.Functions.GetEmployeesStartingAfter.Invoke hireDate)
-    [
-      for e in results.ReturnValue do
-        yield! e.ColumnValues
-    ]
+////Support for sprocs that return ref cursors and has in parameters
+//let getemployees hireDate =
+//    let results = (ctx.Functions.GetEmployeesStartingAfter.Invoke hireDate)
+//    [
+//      for e in results.ReturnValue do
+//        yield! e.ColumnValues
+//    ]
 
-getemployees (new System.DateTime(1999,4,1))
+//getemployees (new System.DateTime(1999,4,1))
 
-// Support for sprocs that return `table of`
-ctx.Functions.GetDepartments.Invoke().ReturnValue
-|> Array.map (fun e -> e.MapTo<Department>())
-|> printfn "%A"
+//// Support for sprocs that return `table of`
+//ctx.Functions.GetDepartments.Invoke().ReturnValue
+//|> Array.map (fun e -> e.MapTo<Department>())
+//|> printfn "%A"
 
-//********************** Functions ***************************//
+////********************** Functions ***************************//
 
-let fullName = ctx.Functions.EmpFullname.Invoke(100).ReturnValue
+//let fullName = ctx.Functions.EmpFullname.Invoke(100).ReturnValue
 
 //********************** Type test ***************************//
 

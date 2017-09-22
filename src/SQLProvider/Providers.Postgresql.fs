@@ -225,6 +225,8 @@ module PostgreSQL =
 
         findDbType <- resolveAlias >> mappings.TryFind
 
+    let createEnumType indexes names enumName = findDbType enumName
+
     let createConnection connectionString =
         try
             Activator.CreateInstance(connectionType.Value,[|box connectionString|]) :?> IDbConnection
@@ -672,6 +674,9 @@ type internal PostgresqlProvider(resolutionPath, owner, referencedAssemblies) =
                             ,(not pg_attribute.attnotnull)                                 AS is_nullable
                             ,coalesce(pg_index.indisprimary, false)                        AS is_primary_key
                             ,coalesce(pg_class.relkind = 'S', false)                       AS is_sequence
+                            ,coalesce(pg_enum.enumtypid > 0, false)                        AS is_enum
+                            ,array_agg(pg_enum.enumsortorder)                              AS enum_values
+                            ,array_agg(pg_enum.enumlabel)                                  AS enum_names
                         FROM pg_attribute 
                         LEFT JOIN pg_index
                             ON pg_attribute.attrelid = pg_index.indrelid
@@ -682,10 +687,21 @@ type internal PostgresqlProvider(resolutionPath, owner, referencedAssemblies) =
                             ON pg_depend.objid = pg_class.oid
                         LEFT JOIN pg_type
                             ON pg_class.reltype = pg_type.oid 
+                        LEFT JOIN pg_enum 
+                            ON pg_attribute.atttypid = pg_enum.enumtypid  
                         WHERE   
                                 pg_attribute.attnum > 0
                             AND pg_attribute.attrelid = format('%I.%I', @schema, @table) ::regclass
                             AND NOT pg_attribute.attisdropped
+                        GROUP BY
+                             pg_attribute.attname                                          
+                            ,rtrim(format_type(pg_attribute.atttypid, NULL), '[]')         
+                            ,format_type(pg_attribute.atttypid, pg_attribute.atttypmod)    
+                            ,pg_attribute.attndims                                         
+                            ,(not pg_attribute.attnotnull)                                 
+                            ,coalesce(pg_index.indisprimary, false)                        
+                            ,coalesce(pg_class.relkind = 'S', false)                       
+                            ,coalesce(pg_enum.enumtypid > 0, false)
                         "
                     use command = PostgreSQL.createCommand baseQuery con
                     PostgreSQL.createCommandParameter (QueryParameter.Create("@schema", 0)) table.Schema |> command.Parameters.Add |> ignore
@@ -698,7 +714,10 @@ type internal PostgresqlProvider(resolutionPath, owner, referencedAssemblies) =
                                 let dimensions = Sql.dbUnbox<int> reader.["array_dimensions"]  
                                 let baseTypeName = Sql.dbUnbox<string> reader.["base_data_type"]
                                 let fullTypeName = Sql.dbUnbox<string> reader.["data_type_with_sizes"]
-                                let baseDataType = PostgreSQL.findDbType baseTypeName
+                                let baseDataType = 
+                                  if Sql.dbUnbox<bool> reader.["is_enum"] 
+                                    then PostgreSQL.createEnumType (Sql.dbUnbox<int[]> reader.["enum_values"]) (Sql.dbUnbox<string[]> reader.["enum_names"]) baseTypeName 
+                                    else PostgreSQL.findDbType baseTypeName
 
                                 let typeMapping = 
                                     match dimensions with   
