@@ -30,7 +30,7 @@ module internal DesignTimeCache =
 type SqlTypeProvider(config: TypeProviderConfig) as this =     
     inherit TypeProviderForNamespaces(config)
     let sqlRuntimeInfo = SqlRuntimeInfo(config)
-    let ns = "FSharp.Data.Sql"
+    let [<Literal>] FSHARP_DATA_SQL = "FSharp.Data.Sql"
     
     let createTypes(connnectionString, conStringName,dbVendor,resolutionPath,individualsAmount,useOptionTypes,owner,caseSensitivity, tableNames, odbcquote, sqliteLibrary, rootTypeName) = 
         let resolutionPath = 
@@ -50,7 +50,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
             | cs -> cs
                     
         let rootType, prov, con = 
-            let rootType = ProvidedTypeDefinition(sqlRuntimeInfo.RuntimeAssembly,ns,rootTypeName,Some typeof<obj>, true, isErased = true)
+            let rootType = ProvidedTypeDefinition(sqlRuntimeInfo.RuntimeAssembly,FSHARP_DATA_SQL,rootTypeName,Some typeof<obj>, true, isErased = true)
             let prov = ProviderBuilder.createProvider dbVendor resolutionPath config.ReferencedAssemblies config.RuntimeAssembly owner tableNames odbcquote sqliteLibrary
             let con = prov.CreateConnection conString
             this.Disposing.Add(fun _ -> 
@@ -284,12 +284,19 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                         prop.AddXmlDoc(sprintf "Related %s entities from the primary side of the relationship, where the primary key is %s and the foreign key is %s. Constraint: %s" r.PrimaryTable r.PrimaryKey r.ForeignKey constraintName)
                         yield prop ]
                 attProps @ relProps)
-        
+
         let generateSprocMethod (container:ProvidedTypeDefinition) (con:IDbConnection) (sproc:CompileTimeSprocDefinition) =    
-            let sprocname = SchemaProjections.buildSprocName(sproc.Name.DbName)
+            let sprocname = 
+              let niceName = SchemaProjections.buildSprocName(sproc.Name.DbName)   
+              this.Namespaces
+              |> Array.tryFind (fun ns' -> ns'.NamespaceName = FSHARP_DATA_SQL)
+              |> function
+                  | Some providerNs -> SchemaProjections.avoidTypeNameClash providerNs niceName
+                  | None -> niceName
+
             let rt = ProvidedTypeDefinition(sprocname,None, true, isErased = true)
-            let resultType = ProvidedTypeDefinition(sqlRuntimeInfo.RuntimeAssembly, ns, "Result"+sprocname, None, true, isErased = true)
-            this.AddNamespace(ns, [resultType])
+            let resultType = ProvidedTypeDefinition(sqlRuntimeInfo.RuntimeAssembly, FSHARP_DATA_SQL, "Result"+sprocname, None, true, isErased = true)
+            this.AddNamespace(FSHARP_DATA_SQL, [resultType])
 
             let empty = fun (_:Expr list) -> <@@ () @@>
             resultType.AddMember(ProvidedConstructor([ProvidedParameter("sqlDataContext", typeof<ISqlDataContext>)], empty))
@@ -309,8 +316,8 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                         match retCols.Length with
                         | 0 -> typeof<Unit>
                         | _ -> 
-                              let rt = ProvidedTypeDefinition(sqlRuntimeInfo.RuntimeAssembly,ns,"SprocResult"+sprocname,Some typeof<SqlEntity>, true, isErased = true)
-                              do this.AddNamespace(ns, [rt])
+                              let rt = ProvidedTypeDefinition(sqlRuntimeInfo.RuntimeAssembly,FSHARP_DATA_SQL,"SprocResult"+sprocname,Some typeof<SqlEntity>, true, isErased = true)
+                              do this.AddNamespace(FSHARP_DATA_SQL, [rt])
 
                               rt.AddMemberDelayed(fun () -> ProvidedConstructor([],empty))
                               retCols
@@ -337,22 +344,26 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                      ProvidedMethod("InvokeAsync", parameters, asyncRet, invokeCode = QuotationHelpers.quoteRecord runtimeSproc (fun args var -> 
                         <@@ (((%%args.[0] : obj):?>ISqlDataContext)).CallSprocAsync(%%var, %%retColsExpr,  %%Expr.NewArray(typeof<obj>,List.map(fun e -> Expr.Coerce(e,typeof<obj>)) args.Tail)) @@>))]
             )
-
-            ProvidedProperty(SchemaProjections.buildSprocName(sproc.Name.ProcName), resultType, getterCode = (fun args -> <@@ ((%%args.[0] : obj) :?>ISqlDataContext) @@>) ) 
+            
+            let niceUniqueSprocName = 
+              SchemaProjections.buildSprocName(sproc.Name.ProcName)
+              |> SchemaProjections.avoidPropertyClash container
+            
+            ProvidedProperty(niceUniqueSprocName, resultType, getterCode = (fun args -> <@@ ((%%args.[0] : obj) :?>ISqlDataContext) @@>) ) 
             
         
         let empty = fun (_:Expr list) -> <@@ () @@>
         let rec walkSproc con (path:string list) (parent:ProvidedTypeDefinition option) (createdTypes:Map<string list,ProvidedTypeDefinition>) (sproc:Sproc) =
             match sproc with
             | Root(typeName, next) -> 
-                let path = (path @ [typeName])
-                match createdTypes.TryFind path with
-                | Some(typ) -> 
-                    walkSproc con path (Some typ) createdTypes next 
+                let newPath = (path @ [typeName])
+                match createdTypes.TryFind newPath with
+                | Some provTypDef -> 
+                    walkSproc con newPath (Some provTypDef) createdTypes next 
                 | None ->
                     let typ = ProvidedTypeDefinition(typeName, None, true, isErased = true)
                     typ.AddMember(ProvidedConstructor([ProvidedParameter("sqlDataContext", typeof<ISqlDataContext>)],empty))
-                    walkSproc con path (Some typ) (createdTypes.Add(path, typ)) next 
+                    walkSproc con newPath (Some typ) (createdTypes.Add(newPath, typ)) next 
             | Package(typeName, packageDefn) ->       
                 match parent with
                 | Some(parent) ->
@@ -367,14 +378,15 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
             | Sproc(sproc) ->
                     match parent with
                     | Some(parent) ->
-                        parent.AddMemberDelayed(fun () -> Sql.ensureOpen con;  generateSprocMethod parent con sproc); createdTypes
-                    | _ -> failwithf "Could not generate sproc undefined root or previous type"
+                        parent.AddMemberDelayed(fun () -> Sql.ensureOpen con; generateSprocMethod parent con sproc); createdTypes
+                    | None -> failwithf "Could not generate sproc undefined root or previous type"
             | Empty -> createdTypes
 
         let rec generateTypeTree con (createdTypes:Map<string list, ProvidedTypeDefinition>) (sprocs:Sproc list) = 
             match sprocs with
             | [] -> 
-                Map.filter (fun (k:string list) _ -> match k with [_] -> true | _ -> false) createdTypes
+                createdTypes
+                |> Map.filter (fun (k:string list) _ -> match k with [_] -> true | _ -> false)
                 |> Map.toSeq
                 |> Seq.map snd
             | sproc::rest -> generateTypeTree con (walkSproc con [] None createdTypes sproc) rest
@@ -615,7 +627,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
         if (dbVendor <> DatabaseProviderTypes.MSACCESS) then con.Close()
         rootType
     
-    let paramSqlType = ProvidedTypeDefinition(sqlRuntimeInfo.RuntimeAssembly, ns, "SqlDataProvider", Some(typeof<obj>), true, isErased = true)
+    let paramSqlType = ProvidedTypeDefinition(sqlRuntimeInfo.RuntimeAssembly, FSHARP_DATA_SQL, "SqlDataProvider", Some(typeof<obj>), true, isErased = true)
     
     let conString = ProvidedStaticParameter("ConnectionString",typeof<string>, "")
     let connStringName = ProvidedStaticParameter("ConnectionStringName", typeof<string>, "")    
@@ -675,7 +687,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
     do paramSqlType.AddXmlDoc helpText               
     
     // add them to the namespace    
-    do this.AddNamespace(ns, [paramSqlType])
+    do this.AddNamespace(FSHARP_DATA_SQL, [paramSqlType])
                             
 [<assembly:TypeProviderAssembly>] 
 do()
