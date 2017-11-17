@@ -433,31 +433,64 @@ module PostgreSQL =
         }
 
     let getSprocs con =
-        let query = sprintf """
-          SELECT 
-             r.specific_name AS id
-	          ,r.routine_schema AS schema_name
-	          ,r.routine_name AS name
-	          ,r.data_type AS returntype
-	          ,COALESCE((
-			          SELECT STRING_AGG(x.param, E'\n')
-			          FROM (
-				          SELECT p.parameter_mode || ';' || COALESCE(p.parameter_name, ('%s' || p.ordinal_position::TEXT)) || ';' || p.data_type AS param
-				          FROM information_schema.parameters p
-				          WHERE p.specific_name = r.specific_name
-				          ORDER BY p.ordinal_position
-				          ) x
-			          ), '') AS args
-          FROM information_schema.routines r
-          NATURAL JOIN information_schema.routine_privileges p
-          WHERE r.routine_schema NOT IN ('pg_catalog', 'information_schema')
-            AND r.data_type <> 'trigger'
-	          AND p.grantee = current_user
-            AND p.privilege_type = 'EXECUTE'
-        """
-        let query' = query ANONYMOUS_PARAMETER_NAME
 
-        Sql.executeSqlAsDataTable createCommand query' con
+        let enumQuery = 
+          sprintf """
+              SELECT 
+	               pg_type.typname AS enum_name
+	              ,pg_enum.enumsortorder AS value_position
+	              ,pg_enum.enumlabel AS value_name
+              FROM pg_type
+              JOIN pg_enum pg_enum ON pg_type.oid = pg_enum.enumtypid
+              JOIN pg_namespace ON pg_namespace.oid = pg_type.typnamespace
+              WHERE pg_namespace.NSPNAME = '%s'
+              ORDER BY pg_namespace.nspname
+	              ,pg_type.typname
+	              ,pg_enum.enumsortorder
+
+          """ owner
+
+        let enums = 
+          Sql.executeSqlAsDataTable createCommand enumQuery con
+          |> DataTable.map (fun r ->
+            let enumName = Sql.dbUnbox<string> r.["enum_name"]
+            let valuePos = Sql.dbUnbox<int> r.["value_position"]
+            let valueName = Sql.dbUnbox<string> r.["value_name"]
+            Root("Enums", 
+              Root(enumName, 
+                Sproc({ Name = valueName
+                        Params = (fun _ -> [])
+                        ReturnColumns = (fun _ _ -> QueryParameter.Create() }
+                )
+              )
+            )
+          )
+
+        let query = 
+          sprintf """
+            SELECT 
+               r.specific_name AS id
+	            ,r.routine_schema AS schema_name
+	            ,r.routine_name AS name
+	            ,r.data_type AS returntype
+	            ,COALESCE((
+			            SELECT STRING_AGG(x.param, E'\n')
+			            FROM (
+				            SELECT p.parameter_mode || ';' || COALESCE(p.parameter_name, ('%s' || p.ordinal_position::TEXT)) || ';' || p.data_type AS param
+				            FROM information_schema.parameters p
+				            WHERE p.specific_name = r.specific_name
+				            ORDER BY p.ordinal_position
+				            ) x
+			            ), '') AS args
+            FROM information_schema.routines r
+            NATURAL JOIN information_schema.routine_privileges p
+            WHERE r.routine_schema = '%s'
+              AND r.data_type <> 'trigger'
+	            AND p.grantee IN ('PUBLIC', current_user)
+              AND p.privilege_type = 'EXECUTE'
+          """ ANONYMOUS_PARAMETER_NAME owner
+
+        Sql.executeSqlAsDataTable createCommand query con
         |> DataTable.mapChoose (fun r ->
             let name = { ProcName = Sql.dbUnbox<string> r.["name"]
                          Owner = Sql.dbUnbox<string> r.["schema_name"]
