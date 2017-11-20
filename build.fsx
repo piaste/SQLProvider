@@ -3,6 +3,7 @@
 // --------------------------------------------------------------------------------------
 
 #r @"packages/FAKE/tools/FakeLib.dll"
+#r @"packages/Npgsql/lib/net451/Npgsql.dll"
 open Fake
 open Fake.Git
 open Fake.AssemblyInfoFile
@@ -112,6 +113,33 @@ Target "BuildCore" (fun _ ->
         { p with 
             Project = "src/SQLProvider.Standard/SQLProvider.Standard.fsproj"
             Configuration = "Release"})
+)
+
+// --------------------------------------------------------------------------------------
+// Set up a PostgreSQL database in the CI pipeline to run Postgres tests
+
+Target "SetupPostgreSQL" (fun _ ->
+      let connBuilder = Npgsql.NpgsqlConnectionStringBuilder()
+
+      connBuilder.Host <- "localhost"
+      connBuilder.Port <- 5432
+      connBuilder.Username <- "postgres"
+      connBuilder.Password <- "postgres"
+      connBuilder.Database <- "postgres"
+  
+      let runCmd query = 
+        use conn = new Npgsql.NpgsqlConnection(connBuilder.ConnectionString)
+        conn.Open()
+        use cmd = new Npgsql.NpgsqlCommand(query, conn)
+        cmd.ExecuteNonQuery() |> ignore    
+
+      let testDbName = "sqlprovider"
+      runCmd ("CREATE DATABASE " + testDbName)
+      connBuilder.Database <- testDbName
+
+      (!! "src/DatabaseScripts/PostgreSQL/*.sql")
+      |> Seq.map IO.File.ReadAllText
+      |> Seq.iter runCmd
 )
 
 // --------------------------------------------------------------------------------------
@@ -286,13 +314,15 @@ Target "BuildDocs" DoNothing
 
 "Clean"
   ==> "AssemblyInfo"
+  // In CI mode, we setup a Postgres database before building
+  =?> ("SetupPostgreSQL", not isLocalBuild)
   ==> "Build"
   =?> ("BuildCore", isLocalBuild || not isMono)
   ==> "RunTests"
   ==> "CleanDocs"
   // Travis doesn't support mono+dotnet:
-  =?> ("GenerateReferenceDocs",isLocalBuild && not isMono)
-  =?> ("GenerateHelp",isLocalBuild && not isMono)
+  =?> ("GenerateReferenceDocs", isLocalBuild && not isMono)
+  =?> ("GenerateHelp", isLocalBuild && not isMono)
   ==> "All"
 
 "All"

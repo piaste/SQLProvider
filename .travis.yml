@@ -3,6 +3,9 @@ dist: trusty
 
 sudo: false  # use the new container-based Travis infrastructure
 
+services:
+  - postgres
+
 mono:
   - 5.0.1
 

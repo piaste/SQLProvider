@@ -1,5 +1,5 @@
-#I "../../../bin/net451"
-#r "../../../bin/net451/FSharp.Data.SqlProvider.dll"
+﻿module PostgreSQLTests
+
 // Postgres Npgsql v.3.2.x has internal reference to System.Threading.Tasks.Extensions.dll:
 // #r "../../../packages/scripts/System.Threading.Tasks.Extensions/lib/portable-net45+win8+wp8+wpa81/System.Threading.Tasks.Extensions.dll"
 open System
@@ -7,7 +7,7 @@ open FSharp.Data.Sql
 open System.Data
 
 [<Literal>]
-let connStr = "User ID=postgres;Password=postgres; Host=localhost;Port=5432;Database=sqlprovider;  "
+let connStr = "User ID=postgres;Password=postgres;Host=localhost;Port=5432;Database=sqlprovider;"
 
 [<Literal>]
 let resolutionPath = __SOURCE_DIRECTORY__ + "/../../../packages/scripts/Npgsql/lib/net45"
@@ -135,10 +135,7 @@ let canonicalTest =
             )
             select (d.DepartmentName, emp.FirstName, emp.LastName, emp.HireDate)
     } |> Seq.toList
-
-
-#r @"../../../packages/scripts/Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
-
+    
 open Newtonsoft.Json
 
 type OtherCountryInformation = {
@@ -252,19 +249,12 @@ ctx.Functions.GetDepartments.Invoke().ReturnValue
 let fullName = ctx.Functions.EmpFullname.Invoke(100).ReturnValue
 
 //********************** Type test ***************************//
-
-#r "../../../packages/scripts/Npgsql/lib/net45/Npgsql.dll"
-
 let point (x,y) = NpgsqlTypes.NpgsqlPoint(x,y)
 let circle (x,y,r) = NpgsqlTypes.NpgsqlCircle (point (x,y), r)
 let path pts = NpgsqlTypes.NpgsqlPath(pts: NpgsqlTypes.NpgsqlPoint [])
 let polygon pts = NpgsqlTypes.NpgsqlPolygon(pts: NpgsqlTypes.NpgsqlPoint [])
 
 let tt = ctx.Public.PostgresqlTypes.Create()
-
-let b = tt.Box0
-tt.Box0 <- b
-
 
 //tt.Abstime0 <- Some DateTime.Today
 tt.Bigint0 <- Some 100L
@@ -273,7 +263,7 @@ tt.Bigserial0 <- 300L
 tt.Bit0 <- Some(System.Collections.BitArray(10, true))
 tt.BitVarying0 <- Some(System.Collections.BitArray([| true; true; false; false |]))
 tt.Boolean0 <- Some(true)
-tt.Box0 <- NpgsqlTypes.NpgsqlBox(0.0, 1.0, 2.0, 3.0)
+tt.Box0 <- Some(NpgsqlTypes.NpgsqlBox(0.0, 1.0, 2.0, 3.0))
 //tt.Box0 <- Some(NpgsqlTypes.NpgsqlBox(0.0f, 1.0f, 2.0f, 3.0f))
 tt.Bytea0 <- Some([| 1uy; 10uy |])
 tt.Character0 <- Some("test")

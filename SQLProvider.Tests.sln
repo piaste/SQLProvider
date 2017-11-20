@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26403.7
+VisualStudioVersion = 15.0.27004.2009
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".paket", ".paket", "{116D77B0-B9B2-4516-8DAF-485D43FE4B18}"
 	ProjectSection(SolutionItems) = preProject
@@ -38,9 +38,17 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Scripts", "Scripts", "{DB81
 		tests\SqlProvider.Tests\scripts\MySqlTests.fsx = tests\SqlProvider.Tests\scripts\MySqlTests.fsx
 		tests\SqlProvider.Tests\scripts\OdbcTests.fsx = tests\SqlProvider.Tests\scripts\OdbcTests.fsx
 		tests\SqlProvider.Tests\scripts\OracleTests.fsx = tests\SqlProvider.Tests\scripts\OracleTests.fsx
-		tests\SqlProvider.Tests\scripts\PostgreSQLTests.fsx = tests\SqlProvider.Tests\scripts\PostgreSQLTests.fsx
 		tests\SqlProvider.Tests\scripts\SQLLiteTests.fsx = tests\SqlProvider.Tests\scripts\SQLLiteTests.fsx
 		tests\SqlProvider.Tests\scripts\SqlServerTests.fsx = tests\SqlProvider.Tests\scripts\SqlServerTests.fsx
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DatabaseScripts", "DatabaseScripts", "{16F249B6-755B-48CF-BA86-5DDA918246A4}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "PostgreSQL", "PostgreSQL", "{C42FCD91-5D6E-4624-B542-0BAB5CC21DC1}"
+	ProjectSection(SolutionItems) = preProject
+		src\DatabaseScripts\PostgreSQL\00 - TABLES.sql = src\DatabaseScripts\PostgreSQL\00 - TABLES.sql
+		src\DatabaseScripts\PostgreSQL\01 - FUNCTIONS.sql = src\DatabaseScripts\PostgreSQL\01 - FUNCTIONS.sql
+		src\DatabaseScripts\PostgreSQL\02 - DATA.sql = src\DatabaseScripts\PostgreSQL\02 - DATA.sql
 	EndProjectSection
 EndProject
 Global
@@ -65,5 +73,9 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{C7E85487-91DA-43CE-B343-C54614949C13} = {D383A6BC-FD4A-4C9C-99CA-5AE5C8A7B261}
+		{C42FCD91-5D6E-4624-B542-0BAB5CC21DC1} = {16F249B6-755B-48CF-BA86-5DDA918246A4}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E7FE1DE6-5A18-496F-BD74-54531D20229B}
 	EndGlobalSection
 EndGlobal

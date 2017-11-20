@@ -9,6 +9,7 @@ nuget NUnit = 2.6.4
 nuget NUnit.Runners = 2.6.4
 nuget SourceLink.Fake
 nuget System.Data.SqlClient
+nuget Npgsql
 
 group Standard
     source https://nuget.org/api/v2

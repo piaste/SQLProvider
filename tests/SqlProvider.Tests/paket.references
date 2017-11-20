@@ -3,5 +3,6 @@ FSharp.Core
 Fake
 
 group Scripts
-
-      Oracle.ManagedDataAccess
+   Oracle.ManagedDataAccess
+   Newtonsoft.Json
+   Npgsql
