@@ -123,9 +123,14 @@ Target "SetupPostgreSQL" (fun _ ->
 
       connBuilder.Host <- "localhost"
       connBuilder.Port <- 5432
-      connBuilder.Username <- "postgres"
-      connBuilder.Password <- "postgres"
       connBuilder.Database <- "postgres"
+
+      connBuilder.Username <- "postgres"
+      connBuilder.Password <- 
+        match buildServer with
+        | Travis -> ""
+        | AppVeyor -> "Password12!"
+        | _ -> "postgres"      
   
       let runCmd query = 
         use conn = new Npgsql.NpgsqlConnection(connBuilder.ConnectionString)
