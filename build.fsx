@@ -137,13 +137,16 @@ Target "SetupPostgreSQL" (fun _ ->
         conn.Open()
         use cmd = new Npgsql.NpgsqlCommand(query, conn)
         cmd.ExecuteNonQuery() |> ignore    
+              
 
       let testDbName = "sqlprovider"
+      printfn "Creating test database %s on connection %s" testDbName connBuilder.ConnectionString
       runCmd ("CREATE DATABASE " + testDbName)
       connBuilder.Database <- testDbName
 
       (!! "src/DatabaseScripts/PostgreSQL/*.sql")
-      |> Seq.map IO.File.ReadAllText
+      |> Seq.map (fun f -> printfn "Running script %s on connection %s" f connBuilder.ConnectionString; f)
+      |> Seq.map IO.File.ReadAllText      
       |> Seq.iter runCmd
 )
 

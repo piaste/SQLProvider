@@ -1,7 +1,7 @@
 init:
   - git config --global core.autocrlf input
 services:
-  - postgres
+  - postgres10
 build_script:
   - cmd: build.cmd All
 test: off
