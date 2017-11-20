@@ -1,14 +1,26 @@
+environment:
+  # postgres
+  POSTGRES_PORT: tcp://localhost:5432
+  POSTGRES_ENV_POSTGRES_USER: postgres
+  POSTGRES_ENV_POSTGRES_PASSWORD: Password12!
+  POSTGRES_ENV_POSTGRES_DB: testdb
+  POSTGRES_PATH: C:\Program Files\PostgreSQL\9.4
+  PGUSER: postgres
+  PGPASSWORD: Password12!
 services:
-  - postgres95
+  - postgres94
 init:
   - git config --global core.autocrlf input  
-  # Setup PostgreSQL, is this redundant?
-  - SET PGUSER=postgres
-  - SET PGPASSWORD=Password12!
   - SET PATH=C:\Program Files\PostgreSQL\9.5\bin\;%PATH%  
+install:      
   - psql --version
+  - echo localhost:*:testdb:postgres:Password12! > C:\Program Files\PostgreSQL\9.4\pgpass.conf
+  - echo "localhost:*:testdb:postgres:Password12!" > pgpass.conf
+  - echo "localhost:*:testdb:postgres:Password12!" > %userprofile%\pgpass.conf  
+  - SET PGPASSFILE=C:\Program Files\PostgreSQL\9.4\pgpass.conf
+  - set PGPASSWORD=Password12!
 build_script:
-  - createdb postgres
+  - createdb testdb
   - cmd: build.cmd All
 test: off
 version: 0.0.1.{build}
