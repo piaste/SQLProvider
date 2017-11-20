@@ -9,7 +9,6 @@ nuget NUnit = 2.6.4
 nuget NUnit.Runners = 2.6.4
 nuget SourceLink.Fake
 nuget System.Data.SqlClient
-nuget Npgsql
 
 group Standard
     source https://nuget.org/api/v2
@@ -44,6 +43,7 @@ group Scripts
     nuget MySqlConnector
     nuget Newtonsoft.Json
     nuget Npgsql
+    nuget System.Threading.Tasks.Extensions
     nuget Oracle.ManagedDataAccess
     nuget FirebirdSql.Data.FirebirdClient
     nuget System.Data.SQLite.Core
