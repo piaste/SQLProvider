@@ -3,7 +3,7 @@
 // --------------------------------------------------------------------------------------
 
 #r @"packages/FAKE/tools/FakeLib.dll"
-#r @"packages/Npgsql/lib/net451/Npgsql.dll"
+#r @"packages/Scripts/Npgsql/lib/net451/Npgsql.dll"
 open Fake
 open Fake.Git
 open Fake.AssemblyInfoFile
