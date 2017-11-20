@@ -97,7 +97,7 @@ Target "Build" (fun _ ->
 
     // Build .NET Framework solution
     !!"SQLProvider.sln" ++ "SQLProvider.Tests.sln"
-    |> MSBuildRelease "" "Rebuild"
+    |> MSBuildRelease "" "Rebuild"    
     |> ignore
 )
 
