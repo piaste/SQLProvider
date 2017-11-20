@@ -138,7 +138,6 @@ Target "SetupPostgreSQL" (fun _ ->
         use cmd = new Npgsql.NpgsqlCommand(query, conn)
         cmd.ExecuteNonQuery() |> ignore    
               
-
       let testDbName = "sqlprovider"
       printfn "Creating test database %s on connection %s" testDbName connBuilder.ConnectionString
       runCmd ("CREATE DATABASE " + testDbName)
