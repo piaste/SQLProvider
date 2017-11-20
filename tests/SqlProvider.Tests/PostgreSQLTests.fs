@@ -1,13 +1,23 @@
 ﻿module PostgreSQLTests
 
+#if LOCALBUILD
+#else
+
 // Postgres Npgsql v.3.2.x has internal reference to System.Threading.Tasks.Extensions.dll:
 // #r "../../../packages/scripts/System.Threading.Tasks.Extensions/lib/portable-net45+win8+wp8+wpa81/System.Threading.Tasks.Extensions.dll"
 open System
 open FSharp.Data.Sql
 open System.Data
 
-[<Literal>]
-let connStr = "User ID=postgres;Password=postgres;Host=localhost;Port=5432;Database=sqlprovider;"
+#if TRAVIS
+let [<Literal>] connStr = "User ID=postgres;Host=localhost;Port=5432;Database=sqlprovider;"
+#else
+#if APPVEYOR
+let [<Literal>] connStr = "User ID=postgres;Password=Password12!;Host=localhost;Port=5432;Database=sqlprovider;"
+#else
+let [<Literal>] connStr = "User ID=postgres;Password=postgres;Host=localhost;Port=5432;Database=sqlprovider;"
+#endif 
+#endif
 
 [<Literal>]
 let resolutionPath = __SOURCE_DIRECTORY__ + "/../../../packages/scripts/Npgsql/lib/net45"
@@ -333,3 +343,5 @@ printTest <@@ tt.Bit0 @@>
 printTest <@@ tt.Box0 @@>
 printTest <@@ tt.Interval0 @@>
 printTest <@@ tt.Jsonb0 @@>
+
+#endif

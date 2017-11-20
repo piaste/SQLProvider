@@ -97,7 +97,7 @@ Target "Build" (fun _ ->
 
     // Build .NET Framework solution
     !!"SQLProvider.sln" ++ "SQLProvider.Tests.sln"
-    |> MSBuildRelease "" "Rebuild"    
+    |> MSBuildReleaseExt "" [ "DefineConstants", buildServer.ToString().ToUpper()] "Rebuild"
     |> ignore
 )
 
