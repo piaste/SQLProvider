@@ -20,7 +20,7 @@ install:
   - SET PGPASSFILE=C:\Program Files\PostgreSQL\9.6\pgpass.conf
   - set PGPASSWORD=Password12!
 build_script:
-  - createdb testdb
+  - psql -c "CREATE DATABASE testdb;" -U postgres
   - cmd: build.cmd All
 test: off
 version: 0.0.1.{build}
