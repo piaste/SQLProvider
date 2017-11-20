@@ -4,20 +4,20 @@ environment:
   POSTGRES_ENV_POSTGRES_USER: postgres
   POSTGRES_ENV_POSTGRES_PASSWORD: Password12!
   POSTGRES_ENV_POSTGRES_DB: testdb
-  POSTGRES_PATH: C:\Program Files\PostgreSQL\9.4
+  POSTGRES_PATH: C:\Program Files\PostgreSQL\9.6
   PGUSER: postgres
   PGPASSWORD: Password12!
 services:
-  - postgres94
+  - postgres96
 init:
   - git config --global core.autocrlf input  
-  - SET PATH=C:\Program Files\PostgreSQL\9.4\bin\;%PATH%  
+  - SET PATH=C:\Program Files\PostgreSQL\9.6\bin\;%PATH%  
 install:      
   - psql --version
-  - echo localhost:*:testdb:postgres:Password12! > C:\Program Files\PostgreSQL\9.4\pgpass.conf
+  - echo localhost:*:testdb:postgres:Password12! > C:\Program Files\PostgreSQL\9.6\pgpass.conf
   - echo "localhost:*:testdb:postgres:Password12!" > pgpass.conf
   - echo "localhost:*:testdb:postgres:Password12!" > %userprofile%\pgpass.conf  
-  - SET PGPASSFILE=C:\Program Files\PostgreSQL\9.4\pgpass.conf
+  - SET PGPASSFILE=C:\Program Files\PostgreSQL\9.6\pgpass.conf
   - set PGPASSWORD=Password12!
 build_script:
   - createdb testdb
