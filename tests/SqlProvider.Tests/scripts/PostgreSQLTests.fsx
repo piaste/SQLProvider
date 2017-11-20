@@ -7,7 +7,7 @@ open FSharp.Data.Sql
 open System.Data
 
 [<Literal>]
-let connStr = "User ID=colinbull;Host=localhost;Port=5432;Database=sqlprovider;"
+let connStr = "User ID=postgres;Password=postgres;Host=localhost;    Port=5432;Database=sqlprovider;"
 
 [<Literal>]
 let resolutionPath = __SOURCE_DIRECTORY__ + "/../../../packages/scripts/Npgsql/lib/net45"
@@ -19,6 +19,7 @@ let processId = System.Diagnostics.Process.GetCurrentProcess().Id;
 
 type HR = SqlDataProvider<Common.DatabaseProviderTypes.POSTGRESQL, connStr, ResolutionPath=resolutionPath, UseOptionTypes=true>
 let ctx = HR.GetDataContext()
+
 
 type Employee = {
     EmployeeId : int32

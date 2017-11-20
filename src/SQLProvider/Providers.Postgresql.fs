@@ -323,8 +323,11 @@ module PostgreSQL =
 
     let executeSprocCommand (com:IDbCommand) (inputParams:QueryParameter[]) (retCols:QueryParameter[]) (values:obj[]) =
 
+        if com.CommandText.StartsWith "Enums." then Scalar("Value of the enum", com.CommandText.Substring("Enums.".Length))
+        else
+
         let allParams, outps = executeSprocCommandCommon inputParams retCols values
-        allParams |> Array.iter (fun (_,p) -> com.Parameters.Add(p) |> ignore)
+        allParams |> Array.iter (fun (_,p) -> com.Parameters.Add(p) |> ignore)        
 
         let tran = com.Connection.BeginTransaction()
         let entities =
@@ -374,6 +377,10 @@ module PostgreSQL =
 
     let executeSprocCommandAsync (com:System.Data.Common.DbCommand) (inputParams:QueryParameter[]) (retCols:QueryParameter[]) (values:obj[]) =
         async {
+
+            if com.CommandText.StartsWith "Enums." then return Scalar("Value of the enum", com.CommandText.Substring("Enums.".Length))
+            else
+
             let allParams, outps = executeSprocCommandCommon inputParams retCols values
             allParams |> Array.iter (fun (_,p) -> com.Parameters.Add(p) |> ignore)
 
@@ -444,7 +451,8 @@ module PostgreSQL =
               JOIN pg_enum pg_enum ON pg_type.oid = pg_enum.enumtypid
               JOIN pg_namespace ON pg_namespace.oid = pg_type.typnamespace
               WHERE pg_namespace.NSPNAME = '%s'
-              ORDER BY pg_namespace.nspname
+              ORDER BY 
+                 pg_namespace.nspname
 	              ,pg_type.typname
 	              ,pg_enum.enumsortorder
 
@@ -454,19 +462,26 @@ module PostgreSQL =
           Sql.executeSqlAsDataTable createCommand enumQuery con
           |> DataTable.map (fun r ->
             let enumName = Sql.dbUnbox<string> r.["enum_name"]
-            let valuePos = Sql.dbUnbox<int> r.["value_position"]
+            let valuePosition = Sql.dbUnbox<single> r.["value_position"]
             let valueName = Sql.dbUnbox<string> r.["value_name"]
+            
             Root("Enums", 
-              Root(enumName, 
-                Sproc({ Name = valueName
-                        Params = (fun _ -> [])
-                        ReturnColumns = (fun _ _ -> QueryParameter.Create() }
+              //Root(enumName, 
+                Sproc({ Name = { ProcName = valueName
+                                 Owner = owner
+                                 PackageName = "Enums" }
+                        Params = fun _ -> []
+                        ReturnColumns = fun _ _ -> [ QueryParameter.Create(name = "Enum value",
+                                                                           ordinal = 0,
+                                                                           typeMapping = Option.get (findDbType "text"),
+                                                                           direction = ParameterDirection.Output,
+                                                                           length = 0)] }
                 )
-              )
+              //)
             )
           )
 
-        let query = 
+        let sprocQuery = 
           sprintf """
             SELECT 
                r.specific_name AS id
@@ -490,59 +505,63 @@ module PostgreSQL =
               AND p.privilege_type = 'EXECUTE'
           """ ANONYMOUS_PARAMETER_NAME owner
 
-        Sql.executeSqlAsDataTable createCommand query con
-        |> DataTable.mapChoose (fun r ->
-            let name = { ProcName = Sql.dbUnbox<string> r.["name"]
-                         Owner = Sql.dbUnbox<string> r.["schema_name"]
-                         PackageName = String.Empty }
-            let sparams =
-                let args = Sql.dbUnbox<string> r.["args"] 
-                args.Split('\n')
-                |> Seq.mapi (fun i arg -> i, arg)
-                |> Seq.fold (fun acc (i, arg) ->
-                    match acc with
-                    | None -> None
-                    | Some sparams -> 
-                        let direction, name, typeName =
-                            match arg.Split(';') with
-                            | [| direction; name; typeName |] -> direction, name, typeName
-                            | _ -> failwith "Invalid procedure argument description."
+        let sprocs = 
+          Sql.executeSqlAsDataTable createCommand sprocQuery con
+          |> DataTable.mapChoose (fun r ->
+              let name = { ProcName = Sql.dbUnbox<string> r.["name"]
+                           Owner = Sql.dbUnbox<string> r.["schema_name"]
+                           PackageName = String.Empty }
+              let sparams =
+                  let args = Sql.dbUnbox<string> r.["args"] 
+                  args.Split('\n')
+                  |> Seq.filter (not << String.IsNullOrEmpty)
+                  |> Seq.mapi (fun i arg -> i, arg)
+                  |> Seq.fold (fun acc (i, arg) ->
+                      match acc with
+                      | None -> None
+                      | Some sparams -> 
+                          let direction, name, typeName =
+                              match arg.Split(';') with
+                              | [| direction; name; typeName |] -> direction, name, typeName
+                              | _ -> failwith "Invalid procedure argument description."
 
-                        let direction =
-                            match direction.ToLower() with
-                            | "in" -> ParameterDirection.Input
-                            | "inout" -> ParameterDirection.InputOutput
-                            | "out" -> ParameterDirection.Output
-                            | _ -> failwithf "Unknown parameter direction value %s." direction
+                          let direction =
+                              match direction.ToLower() with
+                              | "in" -> ParameterDirection.Input
+                              | "inout" -> ParameterDirection.InputOutput
+                              | "out" -> ParameterDirection.Output
+                              | _ -> failwithf "Unknown parameter direction value %s." direction
                                                 
-                        match findDbType typeName with
-                        // If the parameter cannot be mapped and is required (i.e. is input or input/output) bail out early
-                        | None -> if direction = ParameterDirection.Output then acc else None
-                        | Some m -> Some <| sparams @ [QueryParameter.Create(name,i,m,direction)]
-                ) (Some [])                    
+                          match findDbType typeName with
+                          // If the parameter cannot be mapped and is required (i.e. is input or input/output) bail out early
+                          | None -> if direction = ParameterDirection.Output then acc else None
+                          | Some m -> Some <| sparams @ [QueryParameter.Create(name,i,m,direction)]
+                  ) (Some [])                    
 
-            match sparams with
-            | None -> None
-            | Some sp -> 
-                let sparams, rcolumns =
-                    let rcolumns = sp |> List.filter (fun p -> p.Direction <> ParameterDirection.Input)
-                    match Sql.dbUnbox<string> r.["returntype"] with
-                    | null -> sp, rcolumns
-                    | "record" ->
-                        match findDbType "record" with
-                        | Some(m) ->
-                            // TODO: query parameters can contain output parameters which could be used to populate provided properties to return value type.
-                            let sparams = sp |> List.filter (fun p -> p.Direction = ParameterDirection.Input)
-                            sparams, [ QueryParameter.Create("ReturnValue", -1, { m with ProviderTypeName = Some("record") }, ParameterDirection.ReturnValue) ]
-                        | None -> sp, rcolumns
-                    | rtype ->
-                        findDbType rtype
-                        |> Option.map (fun m -> QueryParameter.Create("ReturnValue",0,m,ParameterDirection.ReturnValue))
-                        |> Option.fold (fun acc col -> fst acc, col :: (snd acc)) (sp, rcolumns)
-                Some <| Root("Functions", Sproc({ Name = name
-                                                  Params = (fun _ -> sparams)
-                                                  ReturnColumns = (fun _ _ -> rcolumns) }))
-        )
+              match sparams with
+              | None -> None
+              | Some sp -> 
+                  let sparams, rcolumns =
+                      let rcolumns = sp |> List.filter (fun p -> p.Direction <> ParameterDirection.Input)
+                      match Sql.dbUnbox<string> r.["returntype"] with
+                      | null -> sp, rcolumns
+                      | "record" ->
+                          match findDbType "record" with
+                          | Some(m) ->
+                              // TODO: query parameters can contain output parameters which could be used to populate provided properties to return value type.
+                              let sparams = sp |> List.filter (fun p -> p.Direction = ParameterDirection.Input)
+                              sparams, [ QueryParameter.Create("ReturnValue", -1, { m with ProviderTypeName = Some("record") }, ParameterDirection.ReturnValue) ]
+                          | None -> sp, rcolumns
+                      | rtype ->
+                          findDbType rtype
+                          |> Option.map (fun m -> QueryParameter.Create("ReturnValue",0,m,ParameterDirection.ReturnValue))
+                          |> Option.fold (fun acc col -> fst acc, col :: (snd acc)) (sp, rcolumns)
+                  Some <| Root("Functions", Sproc({ Name = name
+                                                    Params = (fun _ -> sparams)
+                                                    ReturnColumns = (fun _ _ -> rcolumns) }))
+          )
+
+        enums @ sprocs
 
 type internal PostgresqlProvider(resolutionPath, owner, referencedAssemblies) =
     let pkLookup = ConcurrentDictionary<string,string list>()

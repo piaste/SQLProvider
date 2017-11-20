@@ -497,10 +497,6 @@ and internal SqlQuery =
             let sq = convert (SqlQuery.Empty) exp
             sq
 
-and internal StaticValue = 
-    | Root of string * StaticValue list
-    | StaticValue of name : string * description : string * Type * value : obj
-
 and internal ISqlProvider =
     /// return a new, unopened connection using the provided connection string
     abstract CreateConnection : string -> IDbConnection
@@ -547,8 +543,6 @@ and internal ISqlProvider =
     abstract ExecuteSprocCommand : IDbCommand * QueryParameter[] * QueryParameter[] *  obj[] -> ReturnValueType
     ///Builds a command representing a call to a stored procedure, executing async
     abstract ExecuteSprocCommandAsync : System.Data.Common.DbCommand * QueryParameter[] * QueryParameter[] *  obj[] -> Async<ReturnValueType>
-    ///Returns any static values which the database can provide at compile time and which depend only on the schema, e.g. enumerations or 
-    abstract GetStaticValues : IDbConnection -> StaticValue list
 
 /// GroupResultItems is an item to create key-igrouping-structure.
 /// From the select group-by projection, aggregate operations like Enumerable.Count() 
