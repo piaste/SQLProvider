@@ -1,4 +1,5 @@
 source https://nuget.org/api/v2
+
 nuget Nuget.CommandLine
 nuget FAKE
 nuget FSharp.Formatting
@@ -42,7 +43,6 @@ group Scripts
     nuget MySqlConnector
     nuget Newtonsoft.Json
     nuget Npgsql
-    nuget System.Threading.Tasks.Extensions
     nuget Oracle.ManagedDataAccess
     nuget FirebirdSql.Data.FirebirdClient
     nuget System.Data.SQLite.Core
