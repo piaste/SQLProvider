@@ -72,6 +72,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="paket.references" />
+    <None Include="System.Threading.Tasks.Extensions.dll" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
@@ -365,11 +366,6 @@
       <ItemGroup>
         <Reference Include="Npgsql">
           <HintPath>..\..\packages\scripts\Npgsql\lib\net45\Npgsql.dll</HintPath>
-          <Private>True</Private>
-          <Paket>True</Paket>
-        </Reference>
-        <Reference Include="System.Threading.Tasks.Extensions">
-          <HintPath>..\..\packages\scripts\Npgsql\lib\net45\System.Threading.Tasks.Extensions.dll</HintPath>
           <Private>True</Private>
           <Paket>True</Paket>
         </Reference>

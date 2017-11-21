@@ -20,7 +20,7 @@ let [<Literal>] connStr = "User ID=postgres;Password=postgres;Host=localhost;Por
 #endif
 
 [<Literal>]
-let resolutionPath = __SOURCE_DIRECTORY__ + "/../../../packages/scripts/Npgsql/lib/net45"
+let resolutionPath = __SOURCE_DIRECTORY__ + @"/../../packages/scripts/Npgsql/lib/net45"
 
 FSharp.Data.Sql.Common.QueryEvents.SqlQueryEvent |> Event.add (printfn "Executing SQL: %O")
 FSharp.Data.Sql.Common.QueryEvents.LinqExpressionEvent |> Event.add (printfn "Expression: %A")
