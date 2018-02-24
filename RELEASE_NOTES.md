@@ -1,3 +1,41 @@
+### 1.1.36 - 24.02.2018
+* distinct count support
+
+### 1.1.35 - 15.02.2018
+* selectOperations parameter to enable running canonical operations on select clause, PR #518
+
+### 1.1.34 - 15.02.2018
+* Access Date cast fix
+* ToString() as canonical operation
+* Case-clause alias resolution fix
+
+### 1.1.33 - 14.02.2018
+* Canonical operations chaining type-checking fixed
+
+### 1.1.32 - 13.02.2018
+* initial case-when-else support on where-clauses, PR #515
+* mapping SQL server time to TimeSpan, PR #517
+* fixed canonical operations when constant is before column
+
+### 1.1.31 - 01.02.2018
+* Oracle fix insert rows into table without primary key #514
+
+### 1.1.30 - 01.02.2018
+* Postgres ltree mapping PR #510
+* Single table group-by over a constant value PR #511
+* More aggregate functions: StdDev, Variance
+* More canonical math functions: Sqrt, Sin, Cos, Tan, ASin, ACos, ATan, Math.Max and Math.Min
+
+### 1.1.29 - 25.01.2018
+* Firebird fixes for numeric columns and column descriptions, PR #508
+
+### 1.1.28 - 19.01.2018
+* More dynamic naming for nested parameters
+
+### 1.1.27 - 19.01.2018
+* Support for parameters in union queries #505
+* Support for string notlike-operations with LINQ syntax: not(x.StartsWith("..."))
+
 ### 1.1.26 - 12.01.2018
 * Updated the Type Provider SDK
 

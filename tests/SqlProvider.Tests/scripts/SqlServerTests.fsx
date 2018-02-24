@@ -160,6 +160,22 @@ let nestedQueryTest =
     } |> Seq.toArray
 
 
+let ``simple math operationsquery``() =
+    let itemOf90 = 
+        query {
+            for p in ctx.Dbo.Departments do
+            where (p.DepartmentId - 85 = 5)
+            select p.DepartmentId 
+        } |> Seq.toList
+
+    let ``should be empty`` = 
+        query {
+            for p in ctx.Dbo.Departments do
+            where (p.DepartmentId <> 100 &&  (p.DepartmentId - 100 = 100 - p.DepartmentId))
+            select p.DepartmentId 
+        } |> Seq.toList
+    itemOf90, ``should be empty``
+
 
 let canoncicalOpTest = 
     query {
@@ -170,6 +186,7 @@ let canoncicalOpTest =
             floor(job.MaxSalary)+1m > 4m
             && emp.Email.Length > 1  
             && emp.HireDate.Date.AddYears(-3).Year + 1 > 1997
+            && emp.HireDate.AddDays(1.).Subtract(emp.HireDate).Days = 1
         )
         sortBy emp.HireDate.Day
         select (emp.HireDate, emp.Email, job.MaxSalary)
@@ -246,6 +263,22 @@ let getemployees hireDate =
     ]
 
 getemployees (new System.DateTime(1999,4,1))
+
+
+// Distinct alias test
+let employeesFirstNameSort = 
+    query {
+        for emp in ctx.Dbo.Employees do
+        sortBy (emp.FirstName)
+        select (emp.FirstName, emp.FirstName)
+    } |> Seq.toList
+
+// Standard deviation test
+let stdDevTest = 
+    query {
+        for emp in ctx.Dbo.Employees do
+        select (float emp.Salary)
+    } |> Seq.stdDevAsync |> Async.RunSynchronously
 
 
 //******************** Delete all test **********************//

@@ -73,11 +73,13 @@ module internal QueryImplementation =
                 let collected = 
                     results |> Array.map(fun (e:SqlEntity) ->
                         // Alias is '[Sum_Column]'
-                        let aggregates = [|"COUNT_"; "MIN_"; "MAX_"; "SUM_"; "AVG_";|]
+                        let aggregates = [|"COUNT_"; "MIN_"; "MAX_"; "SUM_"; "AVG_";"STDDEV_";"VAR_"|]
                         let data = 
                             e.ColumnValues |> Seq.toArray |> Array.filter(fun (key, _) -> aggregates |> Array.exists (key.Contains) |> not)
                         match data with
-                        | [||] -> failwith "aggregate not found"
+                        | [||] -> 
+                            let ty = typedefof<GroupResultItems<_>>.MakeGenericType(typeof<int>)
+                            ty.GetConstructors().[1].Invoke [|"";1;e|]
                         | [|keyname, keyvalue|] -> 
                             match keyType with
                             | Some keyTypev ->
@@ -104,7 +106,7 @@ module internal QueryImplementation =
 
     let executeQuery (dc:ISqlDataContext) (provider:ISqlProvider) sqlExp ti =
         use con = provider.CreateConnection(dc.ConnectionString)
-        let (query,parameters,projector,baseTable) = QueryExpressionTransformer.convertExpression sqlExp ti con provider false
+        let (query,parameters,projector,baseTable) = QueryExpressionTransformer.convertExpression sqlExp ti con provider false (dc.SqlOperationsInSelect=SelectOperations.DatabaseSide)
         Common.QueryEvents.PublishSqlQuery query parameters
         // todo: make this lazily evaluated? or optionally so. but have to deal with disposing stuff somehow
         use cmd = provider.CreateCommand(con,query)
@@ -122,7 +124,7 @@ module internal QueryImplementation =
     let executeQueryAsync (dc:ISqlDataContext) (provider:ISqlProvider) sqlExp ti =
        async {
            use con = provider.CreateConnection(dc.ConnectionString) :?> System.Data.Common.DbConnection
-           let (query,parameters,projector,baseTable) = QueryExpressionTransformer.convertExpression sqlExp ti con provider false
+           let (query,parameters,projector,baseTable) = QueryExpressionTransformer.convertExpression sqlExp ti con provider false (dc.SqlOperationsInSelect=SelectOperations.DatabaseSide)
            Common.QueryEvents.PublishSqlQuery query parameters
            // todo: make this lazily evaluated? or optionally so. but have to deal with disposing stuff somehow
            use cmd = provider.CreateCommand(con,query) :?> System.Data.Common.DbCommand
@@ -145,7 +147,7 @@ module internal QueryImplementation =
     let executeQueryScalar (dc:ISqlDataContext) (provider:ISqlProvider) sqlExp ti =
        use con = provider.CreateConnection(dc.ConnectionString)
        con.Open()
-       let (query,parameters,_,_) = QueryExpressionTransformer.convertExpression sqlExp ti con provider false
+       let (query,parameters,_,_) = QueryExpressionTransformer.convertExpression sqlExp ti con provider false true
        Common.QueryEvents.PublishSqlQuery query parameters
        use cmd = provider.CreateCommand(con,query)
        if dc.CommandTimeout.IsSome then
@@ -161,7 +163,7 @@ module internal QueryImplementation =
        async {
            use con = provider.CreateConnection(dc.ConnectionString) :?> System.Data.Common.DbConnection
            do! con.OpenAsync() |> Async.AwaitIAsyncResult |> Async.Ignore
-           let (query,parameters,_,_) = QueryExpressionTransformer.convertExpression sqlExp ti con provider false
+           let (query,parameters,_,_) = QueryExpressionTransformer.convertExpression sqlExp ti con provider false true
            Common.QueryEvents.PublishSqlQuery query parameters
            use cmd = provider.CreateCommand(con,query) :?> System.Data.Common.DbCommand
            if dc.CommandTimeout.IsSome then
@@ -193,7 +195,7 @@ module internal QueryImplementation =
            let sqlExp = modifyAlias sqlExp
            use con = provider.CreateConnection(dc.ConnectionString) :?> System.Data.Common.DbConnection
            do! con.OpenAsync() |> Async.AwaitIAsyncResult |> Async.Ignore
-           let (query,parameters,_,_) = QueryExpressionTransformer.convertExpression sqlExp ti con provider true
+           let (query,parameters,_,_) = QueryExpressionTransformer.convertExpression sqlExp ti con provider true true
            Common.QueryEvents.PublishSqlQuery query parameters
            use cmd = provider.CreateCommand(con,query) :?> System.Data.Common.DbCommand
            if dc.CommandTimeout.IsSome then
@@ -304,7 +306,6 @@ module internal QueryImplementation =
          static member val Provider =
 
              let parseWhere (meth:Reflection.MethodInfo) (source:IWithSqlService) (qual:Expression) =
-                let paramNames = HashSet<string>()
 
                 let isHaving = source.SqlExpression.hasGroupBy().IsSome
 
@@ -316,79 +317,30 @@ module internal QueryImplementation =
 
                         let svc = (qry :?> IWithSqlService)
                         use con = svc.Provider.CreateConnection(svc.DataContext.ConnectionString)
-                        let (query,parameters,projector,baseTable) = QueryExpressionTransformer.convertExpression svc.SqlExpression svc.TupleIndex con svc.Provider false
+                        let (query,parameters,projector,baseTable) = QueryExpressionTransformer.convertExpression svc.SqlExpression svc.TupleIndex con svc.Provider false true
+
+                        let ``nested param names`` = "@param" + abs(query.GetHashCode()).ToString() + "nested"
 
                         let modified = 
                             parameters |> Seq.map(fun p ->
-                                p.ParameterName <- p.ParameterName.Replace("@param", "@paramnested")
+                                p.ParameterName <- p.ParameterName.Replace("@param", ``nested param names``)
                                 p
                             ) |> Seq.toArray
                         let subquery = 
-                            let paramfixed = query.Replace("@param", "@paramnested")
+                            let paramfixed = query.Replace("@param", ``nested param names``)
                             match paramfixed.EndsWith(";") with
                             | false -> paramfixed
                             | true -> paramfixed.Substring(0, paramfixed.Length-1)
                         
                         Some(ti,key,op,Some (box (subquery, modified)))
-                    | SqlSpecialOpArr(ti,op,key,value)
-                    | SqlSpecialNegativeOpArr(ti,op,key,value) ->
-                        paramNames.Add(ti) |> ignore
-                        Some(ti,key,op,Some (box value))
-                    | SqlSpecialOp(ti,op,key,value) ->
-                        paramNames.Add(ti) |> ignore
-                        Some(ti,key,op,Some value)
-                    // if using nullable types
-                    | OptionIsSome(SqlColumnGet(ti,key,_)) ->
-                        paramNames.Add(ti) |> ignore
-                        Some(ti,key,ConditionOperator.NotNull,None)
-                    | OptionIsNone(SqlColumnGet(ti,key,_))
-                    | SqlCondOp(ConditionOperator.Equal,(OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_))), (OptionNone | NullConstant)) 
-                    | SqlNegativeCondOp(ConditionOperator.Equal,(OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_))),(OptionNone | NullConstant)) ->
-                        paramNames.Add(ti) |> ignore
-                        Some(ti,key,ConditionOperator.IsNull,None)
-                    | SqlCondOp(ConditionOperator.NotEqual,(OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_))),(OptionNone | NullConstant)) 
-                    | SqlNegativeCondOp(ConditionOperator.NotEqual,(OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_))),(OptionNone | NullConstant)) ->
-                        paramNames.Add(ti) |> ignore
-                        Some(ti,key,ConditionOperator.NotNull,None)
-                    // matches column to constant with any operator eg c.name = "john", c.age > 42
-                    | SqlCondOp(op,(OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_))),OptionalConvertOrTypeAs(OptionalFSharpOptionValue(ConstantOrNullableConstant(c)))) 
-                    | SqlNegativeCondOp(op,(OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_))),OptionalConvertOrTypeAs(OptionalFSharpOptionValue(ConstantOrNullableConstant(c))))
-                    | SqlCondOp(op,OptionalConvertOrTypeAs(OptionalFSharpOptionValue(ConstantOrNullableConstant(c))),(OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_)))) 
-                    | SqlNegativeCondOp(op,OptionalConvertOrTypeAs(OptionalFSharpOptionValue(ConstantOrNullableConstant(c))),(OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_)))) ->
-                        paramNames.Add(ti) |> ignore
-                        Some(ti,key,op,c)
-                    // matches column to column e.g. c.col1 > c.col2
-                    | SqlCondOp(op,(OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_))),(OptionalConvertOrTypeAs(SqlColumnGet(ti2,key2,_)))) 
-                    | SqlNegativeCondOp(op,(OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_))),(OptionalConvertOrTypeAs(SqlColumnGet(ti2,key2,_)))) ->
-                        let alias2 = resolveTuplePropertyName ti2 source.TupleIndex
-                        Some(ti,key,op,Some((alias2,key2) |> box))
-                    // matches to another property getter, method call or new expression
-                    | SqlCondOp(op,OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_)),OptionalConvertOrTypeAs(OptionalFSharpOptionValue((((:? MemberExpression) | (:? MethodCallExpression) | (:? NewExpression)) as meth))))
-                    | SqlNegativeCondOp(op,OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_)),OptionalConvertOrTypeAs(OptionalFSharpOptionValue((((:? MemberExpression) | (:? MethodCallExpression) | (:? NewExpression)) as meth))))
-                    | SqlCondOp(op,OptionalConvertOrTypeAs(OptionalFSharpOptionValue((((:? MemberExpression) | (:? MethodCallExpression) | (:? NewExpression)) as meth))),OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_)))
-                    | SqlNegativeCondOp(op,OptionalConvertOrTypeAs(OptionalFSharpOptionValue((((:? MemberExpression) | (:? MethodCallExpression) | (:? NewExpression)) as meth))),OptionalConvertOrTypeAs(SqlColumnGet(ti,key,_))) ->
-
-                        paramNames.Add(ti) |> ignore
-                        let invokedResult = Expression.Lambda(meth).Compile().DynamicInvoke()
-
-                        let handleNullCompare() =
-                            match op with
-                            | ConditionOperator.Equal -> Some(ti,key,ConditionOperator.IsNull,None)
-                            | ConditionOperator.NotEqual -> Some(ti,key,ConditionOperator.NotNull,None)
-                            | _ -> Some(ti,key,op,Some(invokedResult))
-
-                        if invokedResult = null then handleNullCompare()
-                        else
-                        let retType = invokedResult.GetType()
-                        if retType.IsGenericType && retType.FullName.StartsWith("Microsoft.FSharp.Core.FSharpOption") then
-                            let gotVal = retType.GetProperty("Value") // Option type Some should not be SQL-parameter.
-                            match gotVal.GetValue(invokedResult, [||]) with
-                            | null -> handleNullCompare()
-                            | r -> Some(ti,key,op,Some(r))
-                        else Some(ti,key,op,Some(invokedResult))
-                    | SqlColumnGet(ti,key,ret) when exp.Type.FullName = "System.Boolean" -> 
-                        paramNames.Add(ti) |> ignore
-                        Some(ti,key,ConditionOperator.Equal, Some(true |> box))
+                    | SimpleCondition ((ti,key,op,c) as x) -> 
+                        match c with
+                        | None -> Some x
+                        | Some t when (t :? (string*SqlColumnType)) ->
+                            let ti2, col = t :?> string*SqlColumnType
+                            let alias2 = resolveTuplePropertyName ti2 source.TupleIndex
+                            Some(ti,key,op,Some(box (alias2,col)))
+                        | Some _ -> Some x
                     | _ -> None
 
                 let rec filterExpression (exp:Expression)  =
@@ -432,12 +384,7 @@ module internal QueryImplementation =
                             FilterClause(filter,BaseTable(name.Name,entity))
                         | current ->
                             if isHaving then HavingClause(filter,current)
-                            else
-
-                            // the following case can happen with multiple where clauses when only a single entity is selected
-                            //if (paramNames.Length > 0 && paramNames.First() = "") || source.TupleIndex.Count = 0 then FilterClause(filter,current)
-                            //else 
-                            FilterClause(filter,current)
+                            else FilterClause(filter,current)
 
                     let ty = typedefof<SqlQueryable<_>>.MakeGenericType(meth.GetGenericArguments().[0])
                     ty.GetConstructors().[0].Invoke [| source.DataContext; source.Provider; sqlExpression; source.TupleIndex; |] :?> IQueryable<_>
@@ -783,15 +730,17 @@ module internal QueryImplementation =
 
                         let subquery = values :?> IWithSqlService
                         use con = subquery.Provider.CreateConnection(source.DataContext.ConnectionString)
-                        let (query,parameters,projector,baseTable) = QueryExpressionTransformer.convertExpression subquery.SqlExpression subquery.TupleIndex con subquery.Provider false
+                        let (query,parameters,projector,baseTable) = QueryExpressionTransformer.convertExpression subquery.SqlExpression subquery.TupleIndex con subquery.Provider false (source.DataContext.SqlOperationsInSelect=SelectOperations.DatabaseSide)
+
+                        let ``nested param names`` = "@param" + abs(query.GetHashCode()).ToString() + "nested"
 
                         let modified = 
                             parameters |> Seq.map(fun p ->
-                                p.ParameterName <- p.ParameterName.Replace("@param", "@paramnested")
+                                p.ParameterName <- p.ParameterName.Replace("@param", ``nested param names``)
                                 p
                             ) |> Seq.toArray
                         let subquery = 
-                            let paramfixed = query.Replace("@param", "@paramnested")
+                            let paramfixed = query.Replace("@param", ``nested param names``)
                             match paramfixed.EndsWith(";") with
                             | false -> paramfixed
                             | true -> paramfixed.Substring(0, paramfixed.Length-1)
@@ -804,7 +753,7 @@ module internal QueryImplementation =
                             | "Intersect" -> UnionType.Intersect
                             | "Except" -> UnionType.Except
                             | _ -> failwithf "Unsupported union type: %s" meth.Name
-                        ty.GetConstructors().[0].Invoke [| source.DataContext; source.Provider; Union(utyp,subquery,source.SqlExpression) ; source.TupleIndex; |] :?> IQueryable<_>
+                        ty.GetConstructors().[0].Invoke [| source.DataContext; source.Provider; Union(utyp,subquery,modified,source.SqlExpression) ; source.TupleIndex; |] :?> IQueryable<_>
 
                     | x -> failwith ("unrecognised method call " + x.ToString())
 
@@ -819,7 +768,7 @@ module internal QueryImplementation =
                         executeQuery svc.DataContext svc.Provider (Take(1,(svc.SqlExpression))) svc.TupleIndex
                         |> Seq.cast<'T>
                         |> Seq.head
-                    | MethodCall(_, (MethodWithName "FirstOrDefault"), [Constant(query, _)]) ->
+                    | MethodCall(_, (MethodWithName "FirstOrDefault"), [ConstantOrNullableConstant(Some query)]) ->
                         let svc = (query :?> IWithSqlService)
                         executeQuery svc.DataContext svc.Provider (Take(1, svc.SqlExpression)) svc.TupleIndex
                         |> Seq.cast<'T>
@@ -830,7 +779,7 @@ module internal QueryImplementation =
                         | x::[] -> x
                         | [] -> raise <| InvalidOperationException("Encountered zero elements in the input sequence")
                         | _ -> raise <| InvalidOperationException("Encountered more than one element in the input sequence")
-                    | MethodCall(_, (MethodWithName "SingleOrDefault"), [Constant(query, _)]) ->
+                    | MethodCall(_, (MethodWithName "SingleOrDefault"), [ConstantOrNullableConstant(Some query)]) ->
                         match (query :?> seq<_>) |> Seq.toList with
                         | [] -> Unchecked.defaultof<'T>
                         | x::[] -> x
@@ -873,17 +822,13 @@ module internal QueryImplementation =
                                 member t.TupleIndex = source.TupleIndex }
                         let res = parseWhere meth limitedSource qual
                         res |> Seq.head |> box :?> 'T
-                    | MethodCall(None, (MethodWithName "Average" | MethodWithName "Sum" | MethodWithName "Max" | MethodWithName "Min" as meth), [SourceWithQueryData source; 
+                    | MethodCall(None, (MethodWithName "Average" | MethodWithName "Avg" | MethodWithName "Sum" | MethodWithName "Max" | MethodWithName "Min"
+                                         | MethodWithName "Avg"  | MethodWithName "StdDev" | MethodWithName "StDev" | MethodWithName "StandardDeviation"
+                                         | MethodWithName "Variance" as meth), [SourceWithQueryData source; 
                              OptionalQuote (Lambda([ParamName param], OptionalConvertOrTypeAs(SqlColumnGet(entity, op,_)))) 
                              ]) ->
 
-                        let key = 
-                            let rec getBaseCol x =
-                                match x with
-                                | KeyColumn k -> k
-                                | CanonicalOperation(_, c) -> getBaseCol c
-                                | GroupColumn(_, c) -> getBaseCol c
-                            getBaseCol op
+                        let key = Utilities.getBaseColumnName op
 
                         let alias =
                              match entity with
@@ -899,7 +844,9 @@ module internal QueryImplementation =
                                     | "Max" -> MaxOp(key)
                                     | "Count" -> CountOp(key)
                                     | "Min" -> MinOp(key)
-                                    | "Average" -> AvgOp(key)
+                                    | "Average" | "Avg" -> AvgOp(key)
+                                    | "StdDev" | "StDev" | "StandardDeviation" -> StdDevOp(key)
+                                    | "Variance" -> VarianceOp(key)
                                     | _ -> failwithf "Unsupported aggregation `%s` in execution expression `%s`" meth.Name (e.ToString())
 
                                match source.SqlExpression with
@@ -917,9 +864,9 @@ module internal QueryImplementation =
                              
                         let sqlExpression =
                             match source.SqlExpression with 
-                            | Projection(MethodCall(None, _, [SourceWithQueryData source; OptionalQuote (Lambda([ParamName param], SqlColumnGet(entity,key,_))) ]),BaseTable(alias,entity2)) ->
+                            | Projection(MethodCall(None, _, [SourceWithQueryData source; OptionalQuote (Lambda([ParamName param], OptionalConvertOrTypeAs(SqlColumnGet(entity,key,_)))) ]),BaseTable(alias,entity2)) ->
                                 Count(Take(1,(FilterClause(Condition.And([alias, key, ConditionOperator.Equal, c],None),source.SqlExpression))))
-                            | Projection(MethodCall(None, _, [SourceWithQueryData source; OptionalQuote (Lambda([ParamName param], SqlColumnGet(entity,key,_))) ]), current) ->
+                            | Projection(MethodCall(None, _, [SourceWithQueryData source; OptionalQuote (Lambda([ParamName param], OptionalConvertOrTypeAs(SqlColumnGet(entity,key,_)))) ]), current) ->
                                 Count(Take(1,(FilterClause(Condition.And(["", key, ConditionOperator.Equal, c],None),current))))
                             | others ->
                                 failwithf "Unsupported execution of contains expression `%s`" (e.ToString())

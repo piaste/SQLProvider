@@ -107,18 +107,29 @@ module internal Utilities =
             match op with // These are very standard:
             | ToUpper -> sprintf "UPPER(%s)" column
             | ToLower -> sprintf "LOWER(%s)" column
-            | Replace(SqlStr(searchItm),SqlStr(toItm)) -> sprintf "REPLACE(%s,'%s','%s')" column searchItm toItm
             | Abs -> sprintf "ABS(%s)" column
             | Ceil -> sprintf "CEILING(%s)" column
             | Floor -> sprintf "FLOOR(%s)" column
             | Round -> sprintf "ROUND(%s)" column
             | RoundDecimals x -> sprintf "ROUND(%s,%d)" column x
+            | BasicMath(o, c) when o = "/" -> sprintf "(%s %s (1.0*%O))" column o c
+            | BasicMathLeft(o, c) when o = "/" -> sprintf "(%O %s (1.0*%s))" c o column
             | BasicMath(o, c) -> sprintf "(%s %s %O)" column o c
+            | BasicMathLeft(o, c) -> sprintf "(%O %s %s)" c o column
+            | Sqrt -> sprintf "SQRT(%s)" column
+            | Sin -> sprintf "SIN(%s)" column
+            | Cos -> sprintf "COS(%s)" column
+            | Tan -> sprintf "TAN(%s)" column
+            | ASin -> sprintf "ASIN(%s)" column
+            | ACos -> sprintf "ACOS(%s)" column
+            | ATan -> sprintf "ATAN(%s)" column
             | _ -> failwithf "Not yet supported: %O %s" op (key.ToString())
         | GroupColumn (AvgOp key, KeyColumn _) -> sprintf "AVG(%s)" (colSprint key)
         | GroupColumn (MinOp key, KeyColumn _) -> sprintf "MIN(%s)" (colSprint key)
         | GroupColumn (MaxOp key, KeyColumn _) -> sprintf "MAX(%s)" (colSprint key)
         | GroupColumn (SumOp key, KeyColumn _) -> sprintf "SUM(%s)" (colSprint key)
+        | GroupColumn (StdDevOp key, KeyColumn _) -> sprintf "STDDEV(%s)" (colSprint key)
+        | GroupColumn (VarianceOp key, KeyColumn _) -> sprintf "VAR(%s)" (colSprint key)
         | GroupColumn (KeyOp key,_) -> colSprint key
         | GroupColumn (CountOp _,_) -> sprintf "COUNT(1)"
         // Nested aggregate operators, e.g. select(x*y) |> Seq.sum
@@ -126,6 +137,8 @@ module internal Utilities =
         | GroupColumn (MinOp _,x) -> sprintf "MIN(%s)" (recursionBase x)
         | GroupColumn (MaxOp _,x) -> sprintf "MAX(%s)" (recursionBase x)
         | GroupColumn (SumOp _,x) -> sprintf "SUM(%s)" (recursionBase x)
+        | GroupColumn (StdDevOp _,x) -> sprintf "STDDEV(%s)" (recursionBase x)
+        | GroupColumn (VarianceOp _,x) -> sprintf "VARIANCE(%s)" (recursionBase x)
 
     let rec genericAliasNotation aliasSprint = function
         | SqlColumnType.KeyColumn col -> aliasSprint col
@@ -138,7 +151,22 @@ module internal Utilities =
         | GroupColumn (MinOp key,_) -> aliasSprint (sprintf "MIN_%s" key)
         | GroupColumn (MaxOp key,_) -> aliasSprint (sprintf "MAX_%s" key)
         | GroupColumn (SumOp key,_) -> aliasSprint (sprintf "SUM_%s" key)
+        | GroupColumn (StdDevOp key,_) -> aliasSprint (sprintf "STDDEV_%s" key)
+        | GroupColumn (VarianceOp key,_) -> aliasSprint (sprintf "VAR_%s" key)
 
+    let rec getBaseColumnName x =
+        match x with
+        | KeyColumn k -> k
+        | CanonicalOperation(_, c) -> "c" + getBaseColumnName c
+        | GroupColumn(_, c) -> "g" + getBaseColumnName c
+
+    let fieldConstant (value:obj) =
+        //Can we create named parameters in ODBC, and how?
+        match value with
+        | :? Guid
+        | :? DateTime
+        | :? String -> sprintf "'%s'" (value.ToString().Replace("'", ""))
+        | _ -> value.ToString()
 
 module ConfigHelpers = 
     

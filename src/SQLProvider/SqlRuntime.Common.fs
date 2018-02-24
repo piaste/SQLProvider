@@ -64,7 +64,15 @@ module public QueryEvents =
    with 
       override x.ToString() =
         let paramsString = x.Parameters |> Seq.fold (fun acc (pName, pValue) -> acc + (sprintf "%s - %A; " pName pValue)) ""
-        sprintf "%s - params %s" x.Command paramsString
+        sprintf "%s -- params %s" x.Command paramsString
+      
+      /// Use this to execute similar queries to test the result of the executed query.
+      member x.ToRawSql() =
+        x.Parameters |> Seq.fold (fun (acc:string) (pName, pValue) -> 
+            match pValue with
+            | :? String as pv -> acc.Replace(pName, (sprintf "'%s'" (pv.Replace("'", "''"))))
+            | :? DateTime as pv -> acc.Replace(pName, (sprintf "'%s'" (pv.ToString("yyyy-MM-dd hh:mm:ss"))))
+            | _ -> acc.Replace(pName, (sprintf "%O" pValue))) x.Command
 
    let private sqlEvent = new Event<SqlEventData>()
 
@@ -275,6 +283,16 @@ type SqlEntity(dc: ISqlDataContext, tableName, columns: ColumnLookup) =
                 | true, data -> prop.GetSetMethod().Invoke(instance, [|propertyTypeMapping (prop.Name,data)|]) |> ignore
                 | false, _ -> ()
             instance
+    
+    /// Makes a copy of entity (database row), which is a new row with the same values (except Id)
+    /// If column primaty key is something else and not-auto-generated, then, too bad...
+    member __.Clone() = 
+        let newItem = SqlEntity(dc, tableName, columns)
+        newItem.SetData(data 
+                        |> Seq.filter(fun kvp -> kvp.Key <> "Id" && kvp.Value <> null) 
+                        |> Seq.map(fun kvp -> kvp.Key, kvp.Value))
+        newItem._State <- Created
+        newItem
 
     interface System.ComponentModel.INotifyPropertyChanged with
         [<CLIEvent>] member __.PropertyChanged = propertyChanged.Publish
@@ -335,6 +353,7 @@ and ISqlDataContext =
     abstract CreateEntity               : string -> SqlEntity
     abstract ReadEntities               : string * ColumnLookup * IDataReader -> SqlEntity[]
     abstract ReadEntitiesAsync          : string * ColumnLookup * DbDataReader -> Async<SqlEntity[]>
+    abstract SqlOperationsInSelect      : SelectOperations
 
 // LinkData is for joins with SelectMany
 and LinkData =
@@ -355,19 +374,7 @@ and GroupData =
       AggregateColumns   : (alias * SqlColumnType) list
       Projection         : Expression option }
 
-and alias = string
 and table = string
-
-and Condition =
-    // this is  (table alias * column name * operator * right hand value ) list  * (the same again list)
-    // basically any AND or OR expression can have N terms and can have N nested condition children
-    // this is largely from my CRM type provider. I don't think in practice for the SQL provider
-    // you will ever have more than what is representable in a traditional binary expression tree, but
-    // changing it would be a lot of effort ;)
-    | And of (alias * SqlColumnType * ConditionOperator * obj option) list * (Condition list) option
-    | Or of (alias * SqlColumnType * ConditionOperator * obj option) list * (Condition list) option
-    | ConstantTrue
-    | ConstantFalse
 
 and SelectData = LinkQuery of LinkData | GroupQuery of GroupData | CrossJoin of alias * Table
 and UnionType = NormalUnion | UnionAll | Intersect | Except
@@ -379,7 +386,7 @@ and internal SqlExp =
     | Projection   of Expression * SqlExp                   // entire LINQ projection expression tree
     | Distinct     of SqlExp                                // distinct indicator
     | OrderBy      of alias * SqlColumnType * bool * SqlExp // alias and column name, bool indicates ascending sort
-    | Union        of UnionType * string * SqlExp           // union type and subquery
+    | Union        of UnionType * string * seq<IDbDataParameter> * SqlExp  // union type and subquery
     | Skip         of int * SqlExp
     | Take         of int * SqlExp
     | Count        of SqlExp
@@ -396,7 +403,7 @@ and internal SqlExp =
                 | OrderBy(_,_,_,rest)
                 | Skip(_,rest)
                 | Take(_,rest)
-                | Union(_,_,rest)
+                | Union(_,_,_,rest)
                 | Count(rest) 
                 | AggregateOp(_,_,rest) -> aux rest
             aux this
@@ -412,7 +419,7 @@ and internal SqlExp =
                 | OrderBy(_,_,_,rest)
                 | Skip(_,rest)
                 | Take(_,rest)
-                | Union(_,_,rest)
+                | Union(_,_,_,rest)
                 | Count(rest) 
                 | AggregateOp(_,_,rest) -> isGroupBy rest
             isGroupBy this
@@ -430,7 +437,7 @@ and internal SqlQuery =
       UltimateChild : (string * Table) option
       Skip          : int option
       Take          : int option
-      Union         : (UnionType*string) option
+      Union         : (UnionType*string*seq<IDbDataParameter>) option
       Count         : bool 
       AggregateOp   : (alias * SqlColumnType) list }
     with
@@ -492,10 +499,10 @@ and internal SqlQuery =
                 | Count(rest) ->
                     if q.Count then failwith "count may only be specified once"
                     else convert { q with Count = true } rest
-                | Union(all,subquery, rest) ->
+                | Union(all,subquery, pars, rest) ->
                     if q.Union.IsSome then failwith "Union may only be specified once. However you can try: xs.Union(ys.Union(zs))"
                     elif q.Take.IsSome then failwith "Union and take-limit is not yet supported as SQL-syntax varies."
-                    else convert { q with Union = Some(all,subquery) } rest
+                    else convert { q with Union = Some(all,subquery,pars) } rest
                 | AggregateOp(alias, operationWithKey, rest) ->
                     convert { q with AggregateOp = (alias, operationWithKey)::q.AggregateOp } rest
             let sq = convert (SqlQuery.Empty) exp
@@ -542,7 +549,7 @@ and internal ISqlProvider =
     /// Accepts a SqlQuery object and produces the SQL to execute on the server.
     /// the other parameters are the base table alias, the base table, and a dictionary containing
     /// the columns from the various table aliases that are in the SELECT projection
-    abstract GenerateQueryText : SqlQuery * string * Table * Dictionary<string,ResizeArray<string>>*bool -> string * ResizeArray<IDbDataParameter>
+    abstract GenerateQueryText : SqlQuery * string * Table * Dictionary<string,ResizeArray<ProjectionParameter>>*bool -> string * ResizeArray<IDbDataParameter>
     ///Builds a command representing a call to a stored procedure
     abstract ExecuteSprocCommand : IDbCommand * QueryParameter[] * QueryParameter[] *  obj[] -> ReturnValueType
     ///Builds a command representing a call to a stored procedure, executing async
@@ -581,6 +588,10 @@ type GroupResultItems<'key>(keyname:String*String, keyval, distinctItem:SqlEntit
     member __.AggregateAvg<'T>(columnName) = this.fetchItem<'T> "AVG" columnName
     member __.AggregateMin<'T>(columnName) = this.fetchItem<'T> "MIN" columnName
     member __.AggregateMax<'T>(columnName) = this.fetchItem<'T> "MAX" columnName
+    member __.AggregateStandardDeviation<'T>(columnName) = this.fetchItem<'T> "STDDEV" columnName
+    member __.AggregateStDev<'T>(columnName) = this.fetchItem<'T> "STDDEV" columnName
+    member __.AggregateStdDev<'T>(columnName) = this.fetchItem<'T> "STDDEV" columnName
+    member __.AggregateVariance<'T>(columnName) = this.fetchItem<'T> "VAR" columnName
 
 module internal CommonTasks =
 

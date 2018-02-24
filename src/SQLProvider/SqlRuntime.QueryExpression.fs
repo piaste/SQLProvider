@@ -18,7 +18,17 @@ module internal QueryExpressionTransformer =
         | FSharp.Quotations.Patterns.Call(_,mi,_) -> mi
         | _ -> failwith "never"
 
-    let transform (projection:Expression) (tupleIndex:string ResizeArray) (databaseParam:ParameterExpression) (aliasEntityDict:Map<string,Table>) (ultimateChild:(string * Table) option) (replaceParams:Dictionary<ParameterExpression, LambdaExpression>) =
+
+    let transform (projection:Expression) (tupleIndex:string ResizeArray) (databaseParam:ParameterExpression) (aliasEntityDict:Map<string,Table>) (ultimateChild:(string * Table) option) (replaceParams:Dictionary<ParameterExpression, LambdaExpression>) useCanonicalsOnSelect =
+        let (|OperationColumnOnly|_|) = function
+            | MethodCall(None, MethodWithName "Select", [Constant(_, t) ;
+                OptionalQuote (Lambda([ParamName sourceAlias],(SqlColumnGet(entity,(CanonicalOperation(_) as coltyp),rtyp) as oper))) as exp]) when 
+                    (t = typeof<System.Linq.IQueryable<SqlEntity>> || t = typeof<System.Linq.IOrderedQueryable<SqlEntity>>) && ((not(databaseParam.Type.Name.StartsWith("IGrouping")))) ->
+                let resolved = Utilities.resolveTuplePropertyName entity tupleIndex
+                let al = if String.IsNullOrEmpty resolved then sourceAlias else resolved
+                Some ((al,coltyp,rtyp), exp, oper.Type)
+            | _ -> None
+
         let (|SingleTable|MultipleTables|) = function
             | MethodCall(None, MethodWithName "Select", [Constant(_, t) ;exp]) when t = typeof<System.Linq.IQueryable<SqlEntity>> || t = typeof<System.Linq.IOrderedQueryable<SqlEntity>> ->
                 SingleTable exp
@@ -34,8 +44,8 @@ module internal QueryExpressionTransformer =
             // in the second case we also need to change any property on the input tuple into calls
             // onto GetSubEntity on the result parameter with the correct alias
 
-        let projectionMap = Dictionary<string,string ResizeArray>()
-        let groupProjectionMap = ResizeArray<AggregateOperation>()
+        let projectionMap = Dictionary<string,ProjectionParameter ResizeArray>()
+        let groupProjectionMap = ResizeArray<SqlColumnType>()
         
         let (|SourceTupleGet|_|) (e:Expression) =
             match e with
@@ -74,26 +84,39 @@ module internal QueryExpressionTransformer =
             match e.NodeType, e with
             | ExpressionType.Call, (:? MethodCallExpression as me) -> 
                 let isGrouping = 
-                    me.Arguments.Count > 0 &&
-                    me.Arguments.[0].Type.Name.StartsWith("IGrouping")
-                
+                    me.Arguments.Count > 0 && (me.Arguments.[0].Type.IsGenericType) &&
+                    (me.Arguments.[0].Type.Name.StartsWith("IGrouping") || me.Arguments.[0].Type.Name.StartsWith("Grouping"))
+                let isNumType (ty:Type) =
+                    decimalTypes  |> Seq.exists(fun t -> t = ty) || integerTypes |> Seq.exists(fun t -> t = ty)
+
                 let op =
-                    if me.Arguments.Count = 1 && me.Arguments.[0].NodeType = ExpressionType.Parameter then
+                    if me.Arguments.Count = 1 && (me.Arguments.[0].NodeType = ExpressionType.Parameter || (me.Arguments.[0].NodeType = ExpressionType.New && me.Arguments.[0].Type.Name.StartsWith("Grouping"))) then
                         match me.Method.Name with
-                        | "Count" -> Some (CountOp "")
+                        | "Count" -> Some (CountOp "", None)
+                        | "Sum" when isNumType me.Type -> Some (SumOp "", None)
+                        | "Avg" | "Average" when (isNumType me.Type) -> Some (AvgOp "", None)
+                        | "Min" when isNumType me.Type -> Some (MinOp "", None)
+                        | "Max" when isNumType me.Type -> Some (MaxOp "", None)
+                        | "StdDev" | "StDev" | "StandardDeviation" when isNumType me.Type -> Some (StdDevOp "", None)
+                        | "Variance" when isNumType me.Type -> Some (VarianceOp "", None)
                         | _ -> None
+
                     elif me.Arguments.Count = 2 then
                         match me.Arguments.[1] with
                         | :? LambdaExpression as la ->
                             let rec directAggregate (exp:Expression) =
                                 match exp.NodeType, exp with
-                                | ExpressionType.Call, OptionalFSharpOptionValue(MethodCall(Some(ParamName name),(MethodWithName "GetColumn" | MethodWithName "GetColumnOption" as mi),[String key])) ->
+                                | _, OptionalConvertOrTypeAs(SqlColumnGet(entity, op, _)) ->
+                                    let key = Utilities.getBaseColumnName op
+
                                     match me.Method.Name with
-                                    | "Count" -> Some (CountOp key)
-                                    | "Sum" -> Some (SumOp key)
-                                    | "Avg" | "Average" -> Some (AvgOp key)
-                                    | "Min" -> Some (MinOp key)
-                                    | "Max" -> Some (MaxOp key)
+                                    | "Count" -> Some (CountOp key, Some op)
+                                    | "Sum" -> Some (SumOp key, Some op)
+                                    | "Avg" | "Average" -> Some (AvgOp key, Some op)
+                                    | "Min" -> Some (MinOp key, Some op)
+                                    | "Max" -> Some (MaxOp key, Some op)
+                                    | "StdDev" | "StDev" | "StandardDeviation" -> Some (StdDevOp key, Some op)
+                                    | "Variance" -> Some (VarianceOp key, Some op)
                                     | _ -> None
                                 | ExpressionType.Quote, (:? UnaryExpression as ce) 
                                 | ExpressionType.Convert, (:? UnaryExpression as ce) -> directAggregate ce.Operand
@@ -109,28 +132,69 @@ module internal QueryExpressionTransformer =
                     else None
 
                 match isGrouping, op with
-                | true, Some o when not(groupProjectionMap.Contains(o)) -> 
+                | true, Some (o, calcs) ->
                     let methodname = "Aggregate"+me.Method.Name
                     
                     let v = match o with 
-                            | CountOp x | SumOp x | AvgOp x | MinOp x | MaxOp x 
+                            | CountOp x | SumOp x | AvgOp x | MinOp x | MaxOp x | StdDevOp x | VarianceOp x 
                             | KeyOp x -> x
                     //Count 1 is over all the items
                     let vf = if v = "" then None else Some v
-
                     let ty = typedefof<GroupResultItems<_>>.MakeGenericType(me.Arguments.[0].Type.GetGenericArguments().[0])
                     let aggregateColumn = Expression.Constant(vf, typeof<Option<string>>) :> Expression
                     let meth = ty.GetMethod(methodname)
                     let generic = meth.MakeGenericMethod(me.Method.ReturnType);
                     let replacementExpr = 
-                            Expression.Call(
-                                Expression.Convert(me.Arguments.[0], ty),
-                                generic, aggregateColumn)
-                    Some (o, replacementExpr)
+                        Expression.Call(Expression.Convert(me.Arguments.[0], ty), generic, aggregateColumn)
+                    let res =
+                        match calcs with
+                        | None -> Some (GroupColumn(o,SqlColumnType.KeyColumn(v)), replacementExpr)
+                        | Some calculation -> Some (GroupColumn(o,calculation), replacementExpr)
+                    if res.IsSome && groupProjectionMap.Contains(fst(res.Value)) then None
+                    else res
                 | _ -> None
             | _ -> None
 
-        let rec (|ProjectionItem|_|) = function
+
+        let (|OperationItem|_|) e = 
+            if not(useCanonicalsOnSelect) then None
+            else
+            match e with
+            | _, (SqlColumnGet(alias,(CanonicalOperation(_,c1) as coltyp),ret) as exp) when ((not(databaseParam.Type.Name.StartsWith("IGrouping")))) -> 
+                // Ok, this is an operation but not a plain column...
+                let foundAlias = 
+                    if aliasEntityDict.ContainsKey(alias) then alias
+                    elif alias.StartsWith "Item" then
+                        let al = Utilities.resolveTuplePropertyName alias tupleIndex
+                        if aliasEntityDict.ContainsKey(al) then al
+                        else alias
+                    elif alias="" && ultimateChild.IsSome then fst ultimateChild.Value
+                    else alias
+
+                let name = "op"+abs(coltyp.GetHashCode()).ToString()
+                let meth = 
+                    if exp.Type.IsGenericType && exp.Type.GetGenericTypeDefinition() = typedefof<Option<_>> then
+                        typeof<SqlEntity>.GetMethod("GetColumnOption").MakeGenericMethod([|exp.Type.GetGenericArguments().[0]|])
+                    else typeof<SqlEntity>.GetMethod("GetColumn").MakeGenericMethod([|exp.Type|])
+
+                let projection = Expression.Call(databaseParam,meth,Expression.Constant(name)) 
+
+                match projectionMap.TryGetValue foundAlias with
+                | true, values when values.Count > 0 -> 
+                    match c1 with
+                    | KeyColumn x when values.Contains(EntityColumn x) -> None //We have this column already
+                    | _ ->
+                        values.Add(OperationColumn(name, coltyp))
+                        Some projection
+                | false, _ -> 
+                    projectionMap.Add(foundAlias,new ResizeArray<_>(seq{yield OperationColumn(name, coltyp)}))
+                    Some projection           
+                | _ -> 
+                    // This table is alredy fetched as all columns
+                    None
+            | _ -> None
+
+        let (|ProjectionItem|_|) = function
             | _, SourceTupleGet(alias,name,None) ->
                 // at any point if we see a property getter where the input is "tupledArg" this
                 // needs to be replaced with a call to GetSubEntity using the result as an input
@@ -140,8 +204,8 @@ module internal QueryExpressionTransformer =
                 Some (Expression.Call(databaseParam,getSubEntityMi,Expression.Constant(alias),Expression.Constant(name)))
             | _, SourceTupleGet(alias,name,Some(key,mi)) ->
                 match projectionMap.TryGetValue alias with
-                | true, values when values.Count > 0 -> values.Add(key)
-                | false, _ -> projectionMap.Add(alias,new ResizeArray<_>(seq{yield key}))
+                | true, values when values.Count > 0 -> values.Add(EntityColumn(key))
+                | false, _ -> projectionMap.Add(alias,new ResizeArray<_>(seq{yield EntityColumn(key)}))
                 | _ -> ()
                 Some
                     (Expression.Call(
@@ -163,8 +227,8 @@ module internal QueryExpressionTransformer =
                 match foundAlias with
                 | Some alias ->
                     match projectionMap.TryGetValue alias with
-                    | true, values when values.Count > 0 -> values.Add(key)
-                    | false, _ -> projectionMap.Add(alias,new ResizeArray<_>(seq{yield key}))
+                    | true, values when values.Count > 0 -> values.Add(EntityColumn(key))
+                    | false, _ -> projectionMap.Add(alias,new ResizeArray<_>(seq{yield EntityColumn(key)}))
                     | _ -> ()
                     Some
                         (match databaseParam.Type.Name.StartsWith("IGrouping") with
@@ -179,6 +243,7 @@ module internal QueryExpressionTransformer =
             let e = ExpressionOptimizer.doReduction e
             if e = null then null else
             match e.NodeType, e with
+            | OperationItem me -> upcast me
             | ProjectionItem me -> upcast me
             | ExpressionType.Negate,             (:? UnaryExpression as e)       -> upcast Expression.Negate(transform en e.Operand,e.Method)
             | ExpressionType.NegateChecked,      (:? UnaryExpression as e)       -> upcast Expression.NegateChecked(transform en e.Operand,e.Method)
@@ -269,18 +334,33 @@ module internal QueryExpressionTransformer =
             | _ -> failwith ("encountered unknown LINQ expression: " + e.NodeType.ToString() + " " + e.ToString())
 
         let newProjection =
-            match projection with
-            | SingleTable(OptionalQuote(Lambda([ParamName _],ParamName x))) ->
-                projectionMap.Add(x,ResizeArray<_>())
-                Expression.Lambda(databaseParam,[databaseParam]) :> Expression
-            | SingleTable(OptionalQuote(Lambda([ParamName x], (NewExpr(ci, args ) )))) ->
-                Expression.Lambda(Expression.New(ci, (List.map (transform (Some x)) args)),[databaseParam]) :> Expression
-            | SingleTable(OptionalQuote(lambda))
-            | MultipleTables(OptionalQuote(lambda)) -> transform None lambda
+            let proj = 
+                if useCanonicalsOnSelect then
+                    match projection with
+                    | OperationColumnOnly((al,coltyp,rtyp), OptionalQuote(lambda), opType) ->
+                        projectionMap.Add(al,new ResizeArray<_>(seq{yield OperationColumn("result", coltyp)}))
+                        let meth = 
+                            if opType.IsGenericType && opType.GetGenericTypeDefinition() = typedefof<Option<_>> then
+                                typeof<SqlEntity>.GetMethod("GetColumnOption").MakeGenericMethod([|opType.GetGenericArguments().[0]|])
+                            else typeof<SqlEntity>.GetMethod("GetColumn").MakeGenericMethod([|opType|])
+                        Some meth
+                    | _ -> None
+                else None
+            match proj with
+            | Some meth -> Expression.Lambda(Expression.Call(databaseParam,meth,Expression.Constant("result")),[databaseParam]) :> Expression
+            | None ->
+                match projection with
+                | SingleTable(OptionalQuote(Lambda([ParamName _],ParamName x))) ->
+                    projectionMap.Add(x,ResizeArray<_>())
+                    Expression.Lambda(databaseParam,[databaseParam]) :> Expression
+                | SingleTable(OptionalQuote(Lambda([ParamName x], (NewExpr(ci, args ) )))) ->
+                    Expression.Lambda(Expression.New(ci, (List.map (transform (Some x)) args)),[databaseParam]) :> Expression
+                | SingleTable(OptionalQuote(lambda))
+                | MultipleTables(OptionalQuote(lambda)) -> transform None lambda
 
         newProjection, projectionMap, groupProjectionMap
 
-    let convertExpression exp (entityIndex:string ResizeArray) con (provider:ISqlProvider) isDeleteScript =
+    let convertExpression exp (entityIndex:string ResizeArray) con (provider:ISqlProvider) isDeleteScript useCanonicalsOnSelect =
         // first convert the abstract query tree into a more useful format
         let legaliseName (alias:alias) =
                 if alias.StartsWith("_") then alias.TrimStart([|'_'|]) else alias
@@ -310,7 +390,7 @@ module internal QueryExpressionTransformer =
                     match sqlQuery.Grouping.Length > 0 with
                     | true -> Expression.Parameter(typeof<System.Linq.IGrouping<_,SqlEntity>>,"result")
                     | false -> Expression.Parameter(typeof<SqlEntity>,"result")
-                let pmap = Dictionary<string,string ResizeArray>()
+                let pmap = Dictionary<string,ProjectionParameter ResizeArray>()
                 pmap.Add(baseAlias, new ResizeArray<_>())
                 (Expression.Lambda(initDbParam,initDbParam).Compile(),pmap)
             | projs -> 
@@ -320,22 +400,40 @@ module internal QueryExpressionTransformer =
                 // But currently SQL will always return a list of SqlEntities.
 
                 let initDbParam = 
-                    // The current join would break here, as it fakes anonymous object to be SqlEntity by skipping projection lambda.
-                    if sqlQuery.Aliases.Count > 0 && sqlQuery.Grouping.Length = 0 then //join
-                        Expression.Parameter(typeof<SqlEntity>,"result")
-                    else
+
+                    /// The current join would break here, as it fakes anonymous object to be SqlEntity by skipping projection lambda.
+                    /// So this method finds if type is join and result should be typeof<SqlEntity> and not the original type.
+                    let rec shouldFlattenToSqlEntity (e:Expression) =
+                        let callEntityType (exp:Expression) =
+                            exp.NodeType = ExpressionType.Call &&
+                            (exp :?> MethodCallExpression).Object <> null && 
+                            (exp :?> MethodCallExpression).Object.Type = typeof<SqlEntity>
+
+                        if e.NodeType = ExpressionType.New then
+                            let ne = e :?> NewExpression
+                            ne <> null && (ne.Type.Name.StartsWith("AnonymousObject") || ne.Type.Name.StartsWith("Tuple")) && 
+                                (ne.Arguments |> Seq.forall(fun a -> (callEntityType a) || (shouldFlattenToSqlEntity a))) 
+                        else if e.NodeType = ExpressionType.Parameter then
+                            let p = e :?> ParameterExpression
+                            if (p.Type.Name.StartsWith("AnonymousObject") || p.Type.Name.StartsWith("Tuple")) then
+                                let ps = p.Type.GetGenericArguments()
+                                ps |> Seq.forall(fun t -> t<>null && t = typeof<SqlEntity>) 
+                            else false
+                        else callEntityType e
 
                     // Usually it's just SqlEntity but it can be also tuple in joins etc.
                     let rec foundInitParamType : Expression -> ParameterExpression = function
                         | :? LambdaExpression as lambda when lambda.Parameters.Count = 1 ->
-                            let t = lambda.Parameters.[0].Type
-                            Expression.Parameter(lambda.Parameters.[0].Type,"result")
+                            if shouldFlattenToSqlEntity lambda.Parameters.[0] then
+                                Expression.Parameter(typeof<SqlEntity>,"result")
+                            else Expression.Parameter(lambda.Parameters.[0].Type,"result")
                         | :? MethodCallExpression as meth when meth.Arguments.Count = 1 ->
-                            Expression.Parameter(meth.Arguments.[0].Type,"result")
+                            if shouldFlattenToSqlEntity meth.Arguments.[0] then
+                                Expression.Parameter(typeof<SqlEntity>,"result")
+                            else Expression.Parameter(meth.Arguments.[0].Type,"result")
                         | :? UnaryExpression as ce -> 
                             foundInitParamType ce.Operand
                         | _ -> Expression.Parameter(typeof<SqlEntity>,"result")
-
                     match projs.Head with
                     // We have this wrap and the lambda is the second argument:
                     | :? MethodCallExpression as meth when meth.Arguments.Count = 2 ->
@@ -369,31 +467,35 @@ module internal QueryExpressionTransformer =
                         | _ -> ()
 
                     generateReplacementParams(currentProj)
-                    let newProjection, projectionMap, groupProjectionMap = transform currentProj entityIndex dbParam sqlQuery.Aliases sqlQuery.UltimateChild replaceParams
+                    let newProjection, projectionMap, groupProjectionMap = transform currentProj entityIndex dbParam sqlQuery.Aliases sqlQuery.UltimateChild replaceParams useCanonicalsOnSelect
                     let fixedParams = Expression.Lambda((newProjection:?>LambdaExpression).Body,initDbParam)
                     
                     if sqlQuery.Grouping.Length > 0 then
                             
                         let gatheredAggregations = 
-                            sqlQuery.Grouping |> List.map(fun (group,_) ->
+                            sqlQuery.Grouping |> List.map(fun (group,x) ->
                                 // GroupBy: collect aggreagte operations
                                 // Should gather the column names what we want to aggregate, not just operations.
                                 let aggregations:(alias * SqlColumnType) list =
                                     groupProjectionMap 
-                                    |> Seq.map(fun op -> 
-//                                        match group |> Seq.tryFind(fun (a,s) -> a=aliasAndOps.Key) with
-//                                        | Some(_, keyitm) -> aliasAndOps.Value |> Seq.map(fun ao -> ao, aliasAndOps.Key, keyitm)
-//                                        | None -> Seq.empty
-                                        group 
-                                        |> Seq.choose(fun (a, c) -> 
-                                            match op, c with
-                                            | KeyOp i, KeyColumn c when String.IsNullOrEmpty i -> Some (a, GroupColumn(KeyOp c, KeyColumn c))
-                                            | MaxOp i, KeyColumn c -> Some (a, GroupColumn(MaxOp (if String.IsNullOrEmpty i then c else i), KeyColumn c))
-                                            | MinOp i, KeyColumn c -> Some (a, GroupColumn(MinOp (if String.IsNullOrEmpty i then c else i), KeyColumn c))
-                                            | SumOp i, KeyColumn c -> Some (a, GroupColumn(SumOp (if String.IsNullOrEmpty i then c else i), KeyColumn c))
-                                            | AvgOp i, KeyColumn c -> Some (a, GroupColumn(AvgOp (if String.IsNullOrEmpty i then c else i), KeyColumn c))
-                                            | CountOp i, KeyColumn c -> Some (a, GroupColumn(CountOp (if String.IsNullOrEmpty i then c else i), KeyColumn c))
-                                            | _ -> None)
+                                    |> Seq.map(fun op ->
+                                        if not (group |> List.isEmpty) then 
+                                            group 
+                                            |> List.choose(fun (a, cc) -> 
+                                                match cc, op with
+                                                | KeyColumn c, GroupColumn(AvgOp "", KeyColumn "") -> Some (a, GroupColumn(AvgOp c, KeyColumn c))
+                                                | KeyColumn c, GroupColumn(MinOp "", KeyColumn "") -> Some (a, GroupColumn(MinOp c, KeyColumn c))
+                                                | KeyColumn c, GroupColumn(MaxOp "", KeyColumn "") -> Some (a, GroupColumn(MaxOp c, KeyColumn c))
+                                                | KeyColumn c, GroupColumn(SumOp "", KeyColumn "") -> Some (a, GroupColumn(SumOp c, KeyColumn c))
+                                                | KeyColumn c, GroupColumn(StdDevOp "", KeyColumn "") -> Some (a, GroupColumn(StdDevOp c, KeyColumn c))
+                                                | KeyColumn c, GroupColumn(VarianceOp "", KeyColumn "") -> Some (a, GroupColumn(VarianceOp c, KeyColumn c))
+                                                | KeyColumn c, GroupColumn(KeyOp "", KeyColumn "") -> Some (a, GroupColumn(KeyOp c, KeyColumn c))
+                                                | KeyColumn c, GroupColumn(CountOp "", KeyColumn "") -> Some (a, GroupColumn(CountOp c, KeyColumn c))
+                                                | KeyColumn c, GroupColumn(agg, KeyColumn g) when g <> "" -> Some (a, op)
+                                                | KeyColumn c, GroupColumn(_) when Utilities.getBaseColumnName op <> "" -> Some (a, op)
+                                                | _ -> None)
+
+                                        else ["",op]
                                     ) |> Seq.concat |> Seq.toList
                                 group, aggregations)
                         groupgin.AddRange(gatheredAggregations)
@@ -401,7 +503,7 @@ module internal QueryExpressionTransformer =
                     //QueryEvents.PublishExpression fixedParams
                     fixedParams,projectionMap
                 
-                let rec composeProjections projs prevLambda (foundparams : Dictionary<string, ResizeArray<string>>) = 
+                let rec composeProjections projs prevLambda (foundparams : Dictionary<string, ResizeArray<ProjectionParameter>>) = 
                     match projs with 
                     | [] -> prevLambda, foundparams
                     | proj::tail -> 
@@ -409,7 +511,7 @@ module internal QueryExpressionTransformer =
                         dbparams1 |> Seq.iter(fun k -> foundparams.[k.Key] <- k.Value )
                         composeProjections tail lambda1 foundparams
 
-                let generatedMegaLambda, finalParams = composeProjections projs (Unchecked.defaultof<LambdaExpression>) (Dictionary<string, ResizeArray<string>>())
+                let generatedMegaLambda, finalParams = composeProjections projs (Unchecked.defaultof<LambdaExpression>) (Dictionary<string, ResizeArray<ProjectionParameter>>())
                 QueryEvents.PublishExpression generatedMegaLambda
                 (generatedMegaLambda.Compile(),finalParams)
 
@@ -437,7 +539,7 @@ module internal QueryExpressionTransformer =
                             let itms = projectionColumns |> Seq.map(fun p -> p.Value) |> Seq.concat |> Seq.distinct |> Seq.toList
                             let selKey = (projectionColumns.Keys |> Seq.head)
                             projectionColumns.Clear()
-                            projectionColumns.Add(selKey, new ResizeArray<string>(itms))
+                            projectionColumns.Add(selKey, new ResizeArray<ProjectionParameter>(itms))
                             projectionColumns.Keys |> Seq.head
 
                { sqlQuery with UltimateChild = Some(alias,snd sqlQuery.UltimateChild.Value) }, alias
@@ -470,32 +572,44 @@ module internal QueryExpressionTransformer =
                 let resolvedSub =
                     match subItem with
                     | BasicMathOfColumns(op,al,col2) -> BasicMathOfColumns(op,resolver al, visitCanonicals resolverfunc col2)
-                    | Substring(SqlIntCol(al, col2)) -> Substring(SqlIntCol(resolver al, visitCanonicals resolverfunc col2))
+                    | Substring(SqlCol(al, col2)) -> Substring(SqlCol(resolver al, visitCanonicals resolverfunc col2))
 
-                    | SubstringWithLength(SqlIntCol(al2, col2),SqlIntCol(al3, col3)) -> SubstringWithLength(SqlIntCol(resolver al2, visitCanonicals resolver col2),SqlIntCol(resolver al3, visitCanonicals resolverfunc col3))
-                    | SubstringWithLength(x,SqlIntCol(al3, col3)) -> SubstringWithLength(x,SqlIntCol(resolver al3, visitCanonicals resolverfunc col3))
-                    | SubstringWithLength(SqlIntCol(al2, col2),x) -> SubstringWithLength(SqlIntCol(resolver al2, visitCanonicals resolverfunc col2),x)
+                    | SubstringWithLength(SqlCol(al2, col2),SqlCol(al3, col3)) -> SubstringWithLength(SqlCol(resolver al2, visitCanonicals resolver col2),SqlCol(resolver al3, visitCanonicals resolverfunc col3))
+                    | SubstringWithLength(x,SqlCol(al3, col3)) -> SubstringWithLength(x,SqlCol(resolver al3, visitCanonicals resolverfunc col3))
+                    | SubstringWithLength(SqlCol(al2, col2),x) -> SubstringWithLength(SqlCol(resolver al2, visitCanonicals resolverfunc col2),x)
 
-                    | Replace(SqlStrCol(al2, col2),SqlStrCol(al3, col3)) -> Replace(SqlStrCol(resolver al2, visitCanonicals resolver col2),SqlStrCol(resolver al3, visitCanonicals resolverfunc col3))
-                    | Replace(x,SqlStrCol(al3, col3)) -> Replace(x,SqlStrCol(resolver al3, visitCanonicals resolverfunc col3))
-                    | Replace(SqlStrCol(al2, col2),x) -> Replace(SqlStrCol(resolver al2, visitCanonicals resolverfunc col2),x)
+                    | Replace(SqlCol(al2, col2),SqlCol(al3, col3)) -> Replace(SqlCol(resolver al2, visitCanonicals resolver col2),SqlCol(resolver al3, visitCanonicals resolverfunc col3))
+                    | Replace(x,SqlCol(al3, col3)) -> Replace(x,SqlCol(resolver al3, visitCanonicals resolverfunc col3))
+                    | Replace(SqlCol(al2, col2),x) -> Replace(SqlCol(resolver al2, visitCanonicals resolverfunc col2),x)
 
-                    | IndexOfStart(SqlStrCol(al2, col2),SqlIntCol(al3, col3)) -> IndexOfStart(SqlStrCol(resolver al2, visitCanonicals resolver col2),SqlIntCol(resolver al3, visitCanonicals resolverfunc col3))
-                    | IndexOfStart(x,SqlIntCol(al3, col3)) -> IndexOfStart(x,SqlIntCol(resolver al3, visitCanonicals resolverfunc col3))
-                    | IndexOfStart(SqlStrCol(al2, col2),x) -> IndexOfStart(SqlStrCol(resolver al2, visitCanonicals resolverfunc col2),x)
+                    | IndexOfStart(SqlCol(al2, col2),SqlCol(al3, col3)) -> IndexOfStart(SqlCol(resolver al2, visitCanonicals resolver col2),SqlCol(resolver al3, visitCanonicals resolverfunc col3))
+                    | IndexOfStart(x,SqlCol(al3, col3)) -> IndexOfStart(x,SqlCol(resolver al3, visitCanonicals resolverfunc col3))
+                    | IndexOfStart(SqlCol(al2, col2),x) -> IndexOfStart(SqlCol(resolver al2, visitCanonicals resolverfunc col2),x)
 
-                    | IndexOf(SqlStrCol(al, col2)) -> IndexOf(SqlStrCol(resolver al, visitCanonicals resolverfunc col2))
+                    | IndexOf(SqlCol(al, col2)) -> IndexOf(SqlCol(resolver al, visitCanonicals resolverfunc col2))
 
-                    | AddYears(SqlIntCol(al, col2)) -> AddYears(SqlIntCol(resolver al, visitCanonicals resolverfunc col2))
-                    | AddDays(SqlNumCol(al, col2)) -> AddDays(SqlNumCol(resolver al, visitCanonicals resolverfunc col2))
-                    | AddMinutes(SqlNumCol(al, col2)) -> AddMinutes(SqlNumCol(resolver al, visitCanonicals resolverfunc col2))
+                    | AddYears(SqlCol(al, col2)) -> AddYears(SqlCol(resolver al, visitCanonicals resolverfunc col2))
+                    | AddDays(SqlCol(al, col2)) -> AddDays(SqlCol(resolver al, visitCanonicals resolverfunc col2))
+                    | AddMinutes(SqlCol(al, col2)) -> AddMinutes(SqlCol(resolver al, visitCanonicals resolverfunc col2))
+                    | DateDiffDays(SqlCol(al, col2)) -> DateDiffDays(SqlCol(resolver al, visitCanonicals resolverfunc col2))
+                    | DateDiffSecs(SqlCol(al, col2)) -> DateDiffSecs(SqlCol(resolver al, visitCanonicals resolverfunc col2))
+
+                    | Greatest(SqlCol(al, col)) -> Greatest(SqlCol(resolver al, visitCanonicals resolverfunc col))
+                    | Least(SqlCol(al, col)) -> Least(SqlCol(resolver al, visitCanonicals resolverfunc col))
+
+                    | CaseSql(f, SqlCol(al, col)) -> CaseSql(resolveFilterList f, SqlCol(resolver al, visitCanonicals resolverfunc col))
+                    | CaseNotSql(f, SqlCol(al, col)) -> CaseNotSql(resolveFilterList f, SqlCol(resolver al, visitCanonicals resolverfunc col))
+                    | CaseSql(f, x) -> CaseSql(resolveFilterList f, x)
+                    | CaseNotSql(f, x) -> CaseNotSql(resolveFilterList f, x)
+                    | CaseSqlPlain(f, a, b) -> CaseSqlPlain(resolveFilterList f, a, b)
+
                     | x -> x
                 CanonicalOperation(resolvedSub, visitCanonicals resolverfunc col) 
             | x -> x
 
-        let resolveC = visitCanonicals resolve
+        and resolveC = visitCanonicals resolve
 
-        let tryResolveC : Option<obj>->Option<obj> = Option.map(function
+        and tryResolveC (e: Option<obj>) : Option<obj> = e |> Option.map(function
             | :? (alias * SqlColumnType) as a ->
                 let al,col = a
                 if al = "" || al.StartsWith "Item" then
@@ -504,11 +618,12 @@ module internal QueryExpressionTransformer =
                     (al, resolveC col) :> obj
             | x -> x)
 
-        let rec resolveFilterList = function
+        and resolveFilterList = function
             | And(xs,y) -> And(xs|>List.map(fun (a,b,c,d) -> resolve a,resolveC b,c,tryResolveC d),Option.map (List.map resolveFilterList) y)
             | Or(xs,y) -> Or(xs|>List.map(fun (a,b,c,d) -> resolve a,resolveC b,c,tryResolveC d),Option.map (List.map resolveFilterList) y)
             | ConstantTrue -> ConstantTrue
             | ConstantFalse -> ConstantFalse
+            | NotSupported x ->  failwithf "Not supported: %O" x
             
         // the crazy LINQ infrastructure does all kinds of weird things with joins which means some information
         // is lost up and down the expression tree, but now with all the data available we can resolve the problems...
@@ -563,6 +678,15 @@ module internal QueryExpressionTransformer =
 
         let sqlQuery = { sqlQuery with Links = List.map resolveLinks sqlQuery.Links }
 
+        let opAliasResolves = seq {
+                for KeyValue(k, v) in projectionColumns do
+                    if v.Exists(fun i -> match i with OperationColumn _ -> true | _ -> false) then
+                        let ops = v |> Seq.map (function | OperationColumn (k,o) -> OperationColumn (k,resolveC o) | x -> x)
+                        yield k, ResizeArray(ops)
+            } 
+
+        opAliasResolves |> Seq.toList |> List.iter(fun (k, ops) -> projectionColumns.[k] <- ops)
+        
         // make sure the provider has cached the columns for the tables within the projection
         projectionColumns
         |> Seq.iter(function KeyValue(k,_) ->
