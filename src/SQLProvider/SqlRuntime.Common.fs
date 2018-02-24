@@ -51,6 +51,12 @@ type SQLiteLibrary =
     | AutoSelect = 2
     // Microsoft.Data.Sqlite. May support .NET Standard 2.0 contract in the future.
     | MicrosoftDataSqlite = 3
+    
+type MSSQLPagingCompatibility =
+    // SQL SERVER versions since 2012
+    | Offset = 0
+    // SQL SERVER versions prior to 2012
+    | RowNumber = 1
 
 module public QueryEvents =
    open System.Data.SqlClient
