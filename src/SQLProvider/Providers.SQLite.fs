@@ -520,7 +520,7 @@ type internal SQLiteProvider(resolutionPath, referencedAssemblies, runtimeAssemb
         member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT * FROM %s LIMIT %i;" table.FullName amount
         member __.GetIndividualQueryText(table,column) = sprintf "SELECT * FROM [%s].[%s] WHERE [%s].[%s].[%s] = @id" table.Schema table.Name table.Schema table.Name column
 
-        member this.GenerateQueryText(sqlQuery,_,baseAlias,baseTable,projectionColumns,isDeleteScript) =
+        member this.GenerateQueryText(sqlQuery,baseAlias,baseTable,projectionColumns,isDeleteScript) =
             let parameters = ResizeArray<_>()
             // NOTE: really need to assign the parameters their correct db types
             let param = ref 0

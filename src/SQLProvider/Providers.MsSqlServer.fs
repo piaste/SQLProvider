@@ -309,14 +309,8 @@ module MSSqlServer =
                 use! reader = com.ExecuteReaderAsync() |> Async.AwaitTask
                 return Set(cols |> Array.map (processReturnColumn reader))
         }
-    
-type MSSQLPagingCompatibility =
-    // SQL SERVER versions since 2012
-    | Offset = 0
-    // SQL SERVER versions prior to 2012
-    | RowNumber = 1
 
-type internal MSSqlServerProvider(tableNames:string) =
+type internal MSSqlServerProvider(tableNames:string, mssqlPaging: MSSQLPagingCompatibility) =
     let pkLookup = ConcurrentDictionary<string,string list>()
     let tableLookup = ConcurrentDictionary<string,Table>()
     let columnLookup = ConcurrentDictionary<string,ColumnLookup>()
@@ -628,7 +622,7 @@ type internal MSSqlServerProvider(tableNames:string) =
         member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT TOP %i * FROM %s" amount table.FullName
         member __.GetIndividualQueryText(table,column) = sprintf "SELECT * FROM [%s].[%s] WHERE [%s].[%s].[%s] = @id" table.Schema table.Name table.Schema table.Name column
 
-        member __.GenerateQueryText(sqlQuery,con,baseAlias,baseTable,projectionColumns,isDeleteScript) =
+        member __.GenerateQueryText(sqlQuery,baseAlias,baseTable,projectionColumns,isDeleteScript) =
             let parameters = ResizeArray<_>()
             // make this nicer later..
             let param = ref 0
@@ -649,9 +643,6 @@ type internal MSSqlServerProvider(tableNames:string) =
               match versionLookup.TryPeek() with
               | true, mssqlVersion when mssqlVersion.Major >= 11 -> MSSQLPagingCompatibility.Offset
               | _ -> MSSQLPagingCompatibility.RowNumber
-
-            let mssqlVersion = (con :?> SqlConnection).ServerVersion |> System.Version            
-            let mssqlPaging = if mssqlVersion.Major >= 11 then MSSQLPagingCompatibility.RowNumber else MSSQLPagingCompatibility.Offset                
 
             let rec fieldNotation (al:alias) (c:SqlColumnType) = 
                 let buildf (c:Condition)= 
@@ -977,32 +968,33 @@ type internal MSSqlServerProvider(tableNames:string) =
             | None -> ()
             
             let sql = 
-              match mssqlPaging with
-              | MSSQLPagingCompatibility.RowNumber ->               
-                  match sqlQuery.Skip, sqlQuery.Take with
-                  | Some skip, Some take ->
-                      outerSb.Append (sb.ToString()) |> ignore
-                      outerSb.Append ")" |> ignore
-                      outerSb.Append (sprintf "SELECT %s FROM CTE [%s] WHERE RN BETWEEN %i AND %i" columns baseAlias (skip+1) (skip+take))  |> ignore
-                      outerSb.ToString()
-                  | Some skip, None ->
-                      outerSb.Append (sb.ToString()) |> ignore
-                      outerSb.Append ")" |> ignore
-                      outerSb.Append (sprintf "SELECT %s FROM CTE [%s] WHERE RN > %i " columns baseAlias skip)  |> ignore
-                      outerSb.ToString()
-                  | _ -> 
+                match mssqlPaging with
+                | MSSQLPagingCompatibility.RowNumber ->               
+                    match sqlQuery.Skip, sqlQuery.Take with
+                    | Some skip, Some take ->
+                        outerSb.Append (sb.ToString()) |> ignore
+                        outerSb.Append ")" |> ignore
+                        outerSb.Append (sprintf "SELECT %s FROM CTE [%s] WHERE RN BETWEEN %i AND %i" columns baseAlias (skip+1) (skip+take))  |> ignore
+                        outerSb.ToString()
+                    | Some skip, None ->
+                        outerSb.Append (sb.ToString()) |> ignore
+                        outerSb.Append ")" |> ignore
+                        outerSb.Append (sprintf "SELECT %s FROM CTE [%s] WHERE RN > %i " columns baseAlias skip)  |> ignore
+                        outerSb.ToString()
+                    | _ -> 
+                      sb.ToString()
+                | _ ->
+                    match sqlQuery.Skip, sqlQuery.Take with
+                    | Some skip, Some take ->
+                        // Note: this only works in >=SQL2012
+                        ~~ (sprintf "OFFSET %i ROWS FETCH NEXT %i ROWS ONLY" skip take)
+                    | Some skip, None ->
+                        // Note: this only works in >=SQL2012
+                        ~~ (sprintf "OFFSET %i ROWS FETCH NEXT %i ROWS ONLY" skip System.UInt32.MaxValue)
+                    | _ -> ()
                     sb.ToString()
-              | _ ->
-                  match sqlQuery.Skip, sqlQuery.Take with
-                  | Some skip, Some take ->
-                      // Note: this only works in >=SQL2012
-                      ~~ (sprintf "OFFSET %i ROWS FETCH NEXT %i ROWS ONLY" skip take)
-                  | Some skip, None ->
-                      // Note: this only works in >=SQL2012
-                      ~~ (sprintf "OFFSET %i ROWS FETCH NEXT %i ROWS ONLY" skip System.UInt32.MaxValue)
-                  | _ -> ()
-                  sb.ToString()
 
+            let sql = sb.ToString()
             (sql,parameters)
 
         member this.ProcessUpdates(con, entities, transactionOptions, timeout) =
