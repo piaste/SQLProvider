@@ -650,6 +650,9 @@ type internal MSSqlServerProvider(tableNames:string) =
               | true, mssqlVersion when mssqlVersion.Major >= 11 -> MSSQLPagingCompatibility.Offset
               | _ -> MSSQLPagingCompatibility.RowNumber
 
+            let mssqlVersion = (con :?> SqlConnection).ServerVersion |> System.Version            
+            let mssqlPaging = if mssqlVersion.Major >= 11 then MSSQLPagingCompatibility.RowNumber else MSSQLPagingCompatibility.Offset                
+
             let rec fieldNotation (al:alias) (c:SqlColumnType) = 
                 let buildf (c:Condition)= 
                     let sb = System.Text.StringBuilder()
