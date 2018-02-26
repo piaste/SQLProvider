@@ -310,7 +310,7 @@ module MSSqlServer =
                 return Set(cols |> Array.map (processReturnColumn reader))
         }
 
-type internal MSSqlServerProvider(tableNames:string) =
+type internal MSSqlServerProvider(tableNames:string, mssqlPaging: MSSQLPagingCompatibility) =
     let pkLookup = ConcurrentDictionary<string,string list>()
     let tableLookup = ConcurrentDictionary<string,Table>()
     let columnLookup = ConcurrentDictionary<string,ColumnLookup>()
@@ -805,8 +805,10 @@ type internal MSSqlServerProvider(tableNames:string) =
                 filterBuilder' f
 
             let sb = System.Text.StringBuilder()
+            let outerSb = System.Text.StringBuilder()
 
             let (~~) (t:string) = sb.Append t |> ignore
+            outerSb.Append "WITH CTE AS ( "  |> ignore
 
             match sqlQuery.Take, sqlQuery.Skip, sqlQuery.Ordering with
             | Some _, Some _, [] -> failwith "skip and take paging requries an orderBy clause."
@@ -890,6 +892,15 @@ type internal MSSqlServerProvider(tableNames:string) =
                     match sqlQuery.Skip, sqlQuery.Take with
                     | None, Some take -> ~~(sprintf "SELECT TOP %i %s " take columns)
                     | _ -> ~~(sprintf "SELECT %s " columns)
+                //ROW_NUMBER
+                match mssqlPaging,sqlQuery.Skip, sqlQuery.Take with
+                | MSSQLPagingCompatibility.RowNumber,Some _,_ -> 
+                    //INCLUDE order by clause in ROW_NUMBER () OVER() of CTE
+                    if sqlQuery.Ordering.Length > 0 then
+                        ~~", ROW_NUMBER() OVER(ORDER BY  "
+                        orderByBuilder()
+                        ~~" ) AS RN  "
+                | _ -> ()
                 // FROM
                 let bal = if baseAlias = "" then baseTable.Name else baseAlias
                 ~~(sprintf "FROM [%s].[%s] as [%s] " baseTable.Schema baseTable.Name bal)
@@ -919,9 +930,15 @@ type internal MSSqlServerProvider(tableNames:string) =
                 filterBuilder (~~) f
 
             // ORDER BY
-            if sqlQuery.Ordering.Length > 0 then
-                ~~"ORDER BY "
-                orderByBuilder()
+            match mssqlPaging,sqlQuery.Skip, sqlQuery.Take with
+            | MSSQLPagingCompatibility.Offset,_,_
+            | MSSQLPagingCompatibility.RowNumber,None,_ ->
+              if sqlQuery.Ordering.Length > 0 then
+                  ~~"ORDER BY "
+                  orderByBuilder()
+            | _ -> 
+              //when RowNumber compatibility with SKIP, ommit order by clause as it's already in CTE
+              ()
 
             match sqlQuery.Union with
             | Some(UnionType.UnionAll, suquery, pars) ->
@@ -937,15 +954,33 @@ type internal MSSqlServerProvider(tableNames:string) =
                 parameters.AddRange pars
                 ~~(sprintf " EXCEPT %s " suquery)
             | None -> ()
-
-            match sqlQuery.Skip, sqlQuery.Take with
-            | Some skip, Some take ->
-                // Note: this only works in >=SQL2012
-                ~~ (sprintf "OFFSET %i ROWS FETCH NEXT %i ROWS ONLY" skip take)
-            | Some skip, None ->
-                // Note: this only works in >=SQL2012
-                ~~ (sprintf "OFFSET %i ROWS FETCH NEXT %i ROWS ONLY" skip System.UInt32.MaxValue)
-            | _ -> ()
+            
+            let sql = 
+                match mssqlPaging with
+                | MSSQLPagingCompatibility.RowNumber ->               
+                    match sqlQuery.Skip, sqlQuery.Take with
+                    | Some skip, Some take ->
+                        outerSb.Append (sb.ToString()) |> ignore
+                        outerSb.Append ")" |> ignore
+                        outerSb.Append (sprintf "SELECT %s FROM CTE [%s] WHERE RN BETWEEN %i AND %i" columns baseAlias (skip+1) (skip+take))  |> ignore
+                        outerSb.ToString()
+                    | Some skip, None ->
+                        outerSb.Append (sb.ToString()) |> ignore
+                        outerSb.Append ")" |> ignore
+                        outerSb.Append (sprintf "SELECT %s FROM CTE [%s] WHERE RN > %i " columns baseAlias skip)  |> ignore
+                        outerSb.ToString()
+                    | _ -> 
+                      sb.ToString()
+                | _ ->
+                    match sqlQuery.Skip, sqlQuery.Take with
+                    | Some skip, Some take ->
+                        // Note: this only works in >=SQL2012
+                        ~~ (sprintf "OFFSET %i ROWS FETCH NEXT %i ROWS ONLY" skip take)
+                    | Some skip, None ->
+                        // Note: this only works in >=SQL2012
+                        ~~ (sprintf "OFFSET %i ROWS FETCH NEXT %i ROWS ONLY" skip System.UInt32.MaxValue)
+                    | _ -> ()
+                    sb.ToString()
 
             let sql = sb.ToString()
             (sql,parameters)
