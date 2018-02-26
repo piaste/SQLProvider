@@ -95,15 +95,6 @@ module MSSqlServer =
             par.Value
         else null
 
-    let isSQL2012Orlater (con:IDbConnection) =
-        try
-            let reader = executeSql "SELECT SERVERPROPERTY('productversion')" con
-            let version = reader.GetSqlString(0)
-            match version.Value.[0..1] |> Double.TryParse with
-            | true, v -> v >= 11.0
-            | _ -> false
-        with _ -> false
-
     let createCommandParameter (param:QueryParameter) (value:obj) =
         let p = SqlParameter(param.Name,value)
         p.DbType <- param.TypeMapping.DbType
