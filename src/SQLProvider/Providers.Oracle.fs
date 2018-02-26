@@ -659,8 +659,7 @@ type internal OracleProvider(resolutionPath, owner, referencedAssemblies, tableN
             match columnCache.TryGetValue table.FullName  with
             | true, cols when cols.Count > 0 -> cols
             | _ ->
-                if con.State <> ConnectionState.Open then con.Open()
-                let cols = Oracle.getColumns primaryKeyColumn table con
+                let cols = Sql.connect con (Oracle.getColumns primaryKeyColumn table)
                 columnCache.GetOrAdd(table.FullName, cols)
 
         member __.GetRelationships(con,table) =

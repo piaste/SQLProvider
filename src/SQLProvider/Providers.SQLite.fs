@@ -457,6 +457,7 @@ type internal SQLiteProvider(resolutionPath, referencedAssemblies, runtimeAssemb
                             yield (col.Name,col)
                         | _ -> ()]
                     |> Map.ofList
+                con.Close()
                 columnLookup.AddOrUpdate(table.FullName, columns, fun x old -> match columns.Count with 0 -> old | x -> columns)
 
         member __.GetRelationships(con,table) =

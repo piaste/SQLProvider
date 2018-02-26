@@ -697,7 +697,4 @@ module internal QueryExpressionTransformer =
 
         let (sql,parameters) = provider.GenerateQueryText(sqlQuery,con,baseAlias,baseTable,projectionColumns,isDeleteScript)
 
-        // closes the connection after the functions are done with it
-        con.Close()
-
         (sql,parameters,projectionDelegate,baseTable)

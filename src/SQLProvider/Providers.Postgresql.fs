@@ -683,70 +683,70 @@ type internal PostgresqlProvider(resolutionPath, owner, referencedAssemblies) =
                     use command = PostgreSQL.createCommand baseQuery con
                     PostgreSQL.createCommandParameter (QueryParameter.Create("@schema", 0)) table.Schema |> command.Parameters.Add |> ignore
                     PostgreSQL.createCommandParameter (QueryParameter.Create("@table", 1)) table.Name |> command.Parameters.Add |> ignore
-                    if con.State <> ConnectionState.Open then con.Open()                    
-                    use reader = command.ExecuteReader()
-                    let columns =
-                        [ while reader.Read() do
+                    Sql.connect con (fun _ ->
+                        use reader = command.ExecuteReader()
+                        let columns =
+                            [ while reader.Read() do
                             
-                            let dimensions = Sql.dbUnbox<int> reader.["array_dimensions"]  
-                            let baseTypeName = Sql.dbUnbox<string> reader.["base_data_type"]
-                            let fullTypeName = Sql.dbUnbox<string> reader.["data_type_with_sizes"]
-                            let baseDataType = PostgreSQL.findDbType baseTypeName
+                                let dimensions = Sql.dbUnbox<int> reader.["array_dimensions"]  
+                                let baseTypeName = Sql.dbUnbox<string> reader.["base_data_type"]
+                                let fullTypeName = Sql.dbUnbox<string> reader.["data_type_with_sizes"]
+                                let baseDataType = PostgreSQL.findDbType baseTypeName
 
-                            let typeMapping = 
-                                match dimensions with   
-                                | 0 -> 
-                                    // plain column
-                                    baseDataType
-                                | n ->
-                                    // array column: we convert the base type to a type mapping for the array
-                                    baseDataType
-                                    |> Option.bind (fun m -> 
-                                        let pt = m.ProviderType
-                                        // binary-add the array type to the bitflag
-                                        match pt with
-                                        | None -> None
-                                        | Some t ->                                            
-                                            let providerType = (t ||| PostgreSQL.arrayProviderDbType.Value)                  
+                                let typeMapping = 
+                                    match dimensions with   
+                                    | 0 -> 
+                                        // plain column
+                                        baseDataType
+                                    | n ->
+                                        // array column: we convert the base type to a type mapping for the array
+                                        baseDataType
+                                        |> Option.bind (fun m -> 
+                                            let pt = m.ProviderType
+                                            // binary-add the array type to the bitflag
+                                            match pt with
+                                            | None -> None
+                                            | Some t ->                                            
+                                                let providerType = (t ||| PostgreSQL.arrayProviderDbType.Value)                  
                                                 
-                                            // .MakeArrayType() would be more elegant, but on Mono it causes
-                                            // issues due to Npgsql producing Foo[*] arrays (variable lower bound)
-                                            // instead of Foo[]
-                                            let sampleArrayOfCorrectRank = Array.CreateInstance(Type.GetType(m.ClrType), lengths = Array.zeroCreate<int> dimensions)
+                                                // .MakeArrayType() would be more elegant, but on Mono it causes
+                                                // issues due to Npgsql producing Foo[*] arrays (variable lower bound)
+                                                // instead of Foo[]
+                                                let sampleArrayOfCorrectRank = Array.CreateInstance(Type.GetType(m.ClrType), lengths = Array.zeroCreate<int> dimensions)
 
-                                            Some { ProviderTypeName = Some "array"
-                                                    ClrType = sampleArrayOfCorrectRank.GetType().AssemblyQualifiedName
-                                                    ProviderType = Some providerType
-                                                    DbType = PostgreSQL.getDbType providerType
-                                                  }
-                                    )
+                                                Some { ProviderTypeName = Some "array"
+                                                       ClrType = sampleArrayOfCorrectRank.GetType().AssemblyQualifiedName
+                                                       ProviderType = Some providerType
+                                                       DbType = PostgreSQL.getDbType providerType
+                                                     }
+                                        )
                                                                 
-                            match typeMapping with
-                            | None ->                                                     
-                                failwithf "Could not get columns for `%s`, the type `%s` is unknown to Npgsql type mapping" table.FullName fullTypeName
-                            | Some m ->
+                                match typeMapping with
+                                | None ->                                                     
+                                    failwithf "Could not get columns for `%s`, the type `%s` is unknown to Npgsql type mapping" table.FullName fullTypeName
+                                | Some m ->
 
-                                let col =
-                                    { Column.Name = Sql.dbUnbox<string> reader.["column_name"]
-                                      TypeMapping = m
-                                      IsNullable = Sql.dbUnbox<bool> reader.["is_nullable"]
-                                      IsPrimaryKey = Sql.dbUnbox<bool> reader.["is_primary_key"]
-                                      TypeInfo = Some fullTypeName
-                                    }
+                                    let col =
+                                        { Column.Name = Sql.dbUnbox<string> reader.["column_name"]
+                                          TypeMapping = m
+                                          IsNullable = Sql.dbUnbox<bool> reader.["is_nullable"]
+                                          IsPrimaryKey = Sql.dbUnbox<bool> reader.["is_primary_key"]
+                                          TypeInfo = Some fullTypeName
+                                        }
 
-                                if col.IsPrimaryKey then
-                                    pkLookup.AddOrUpdate(table.FullName, [col.Name], fun _ old -> 
-                                        match col.Name with 
-                                        | "" -> old 
-                                        | x -> match old with
-                                                | [] -> [x]
-                                                | os -> x::os |> Seq.distinct |> Seq.toList |> List.sort
-                                    ) |> ignore
+                                    if col.IsPrimaryKey then
+                                        pkLookup.AddOrUpdate(table.FullName, [col.Name], fun _ old -> 
+                                            match col.Name with 
+                                            | "" -> old 
+                                            | x -> match old with
+                                                   | [] -> [x]
+                                                   | os -> x::os |> Seq.distinct |> Seq.toList |> List.sort
+                                        ) |> ignore
 
-                                yield col.Name, col
-                        ]
-                        |> Map.ofList
-                    columnLookup.AddOrUpdate(table.FullName, columns, fun x old -> match columns.Count with 0 -> old | x -> columns)
+                                    yield col.Name, col
+                            ]
+                            |> Map.ofList
+                        columnLookup.AddOrUpdate(table.FullName, columns, fun x old -> match columns.Count with 0 -> old | x -> columns))
             finally
                 Monitor.Exit columnLookup
 
