@@ -321,7 +321,7 @@ type internal OdbcProvider(quotechar : OdbcQuoteCharacter) =
             sprintf "SELECT * FROM %c%s%c WHERE %c%s%s%s%c = ?" 
                         cOpen table.Name cClose cOpen table.Name separator column cClose
 
-        member __.GenerateQueryText(sqlQuery,baseAlias,baseTable,projectionColumns,isDeleteScript) =
+        member __.GenerateQueryText(sqlQuery,_,baseAlias,baseTable,projectionColumns,isDeleteScript) =
             let separator = (sprintf "%c.%c" cClose cOpen).Trim()
 
             let parameters = ResizeArray<_>()

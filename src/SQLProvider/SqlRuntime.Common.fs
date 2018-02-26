@@ -51,12 +51,6 @@ type SQLiteLibrary =
     | AutoSelect = 2
     // Microsoft.Data.Sqlite. May support .NET Standard 2.0 contract in the future.
     | MicrosoftDataSqlite = 3
-    
-type MSSQLPagingCompatibility =
-    // SQL SERVER versions since 2012
-    | Offset = 0
-    // SQL SERVER versions prior to 2012
-    | RowNumber = 1
 
 module public QueryEvents =
    open System.Data.SqlClient
@@ -555,7 +549,7 @@ and internal ISqlProvider =
     /// Accepts a SqlQuery object and produces the SQL to execute on the server.
     /// the other parameters are the base table alias, the base table, and a dictionary containing
     /// the columns from the various table aliases that are in the SELECT projection
-    abstract GenerateQueryText : SqlQuery * string * Table * Dictionary<string,ResizeArray<ProjectionParameter>>*bool -> string * ResizeArray<IDbDataParameter>
+    abstract GenerateQueryText : SqlQuery * IDbConnection * string * Table * Dictionary<string,ResizeArray<ProjectionParameter>>*bool -> string * ResizeArray<IDbDataParameter>
     ///Builds a command representing a call to a stored procedure
     abstract ExecuteSprocCommand : IDbCommand * QueryParameter[] * QueryParameter[] *  obj[] -> ReturnValueType
     ///Builds a command representing a call to a stored procedure, executing async

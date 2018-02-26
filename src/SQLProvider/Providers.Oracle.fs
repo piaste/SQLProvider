@@ -671,7 +671,7 @@ type internal OracleProvider(resolutionPath, owner, referencedAssemblies, tableN
         member __.GetIndividualsQueryText(table,amount) = Oracle.getIndivdualsQueryText amount table
         member __.GetIndividualQueryText(table,column) = Oracle.getIndivdualQueryText table column
 
-        member this.GenerateQueryText(sqlQuery,baseAlias,baseTable,projectionColumns,isDeleteScript) =
+        member this.GenerateQueryText(sqlQuery,_,baseAlias,baseTable,projectionColumns,isDeleteScript) =
             let parameters = ResizeArray<_>()
 
             // NOTE: really need to assign the parameters their correct db types
