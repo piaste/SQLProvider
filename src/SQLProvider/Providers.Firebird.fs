@@ -627,7 +627,6 @@ type internal FirebirdProvider(resolutionPath, owner, referencedAssemblies, quot
                             yield (col.Name,col)
                         | _ -> ()]
                     |> Map.ofList
-                con.Close()
                 columnLookup.AddOrUpdate(table.Name, columns, fun x old -> match columns.Count with 0 -> old | x -> columns)
 
         member __.GetRelationships(con,table) =

@@ -563,7 +563,6 @@ type internal MSSqlServerProvider(tableNames:string) =
                            yield (col.Name,col)
                        | _ -> ()]
                    |> Map.ofList
-               con.Close()
                columnLookup.AddOrUpdate(table.FullName, columns, fun x old -> match columns.Count with 0 -> old | x -> columns)
 
         member __.GetRelationships(con,table) =
@@ -637,8 +636,11 @@ type internal MSSqlServerProvider(tableNames:string) =
                 let paramName = nextParam()
                 parameters.Add(SqlParameter(paramName,value):> IDbDataParameter)
                 paramName
-
-            let mssqlVersion = (con :?> SqlConnection).ServerVersion |> System.Version            
+                            
+            let mssqlVersion = 
+                if con.State <> ConnectionState.Open then con.Open()
+                (con :?> SqlConnection).ServerVersion |> System.Version
+                
             let mssqlPaging = if mssqlVersion.Major >= 11 then MSSQLPagingCompatibility.RowNumber else MSSQLPagingCompatibility.Offset                
 
             let rec fieldNotation (al:alias) (c:SqlColumnType) = 
