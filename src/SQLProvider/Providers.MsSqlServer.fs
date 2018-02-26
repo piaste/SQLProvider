@@ -320,6 +320,7 @@ type internal MSSqlServerProvider(tableNames:string) =
     let pkLookup = ConcurrentDictionary<string,string list>()
     let tableLookup = ConcurrentDictionary<string,Table>()
     let columnLookup = ConcurrentDictionary<string,ColumnLookup>()
+    let versionLookup = ConcurrentBag<Version>()
     let relationshipLookup = ConcurrentDictionary<string,Relationship list * Relationship list>()
 
     let fieldNotationAlias(al:alias,col:SqlColumnType) = 
@@ -537,6 +538,12 @@ type internal MSSqlServerProvider(tableNames:string) =
                com.Parameters.AddWithValue("@schema",table.Schema) |> ignore
                com.Parameters.AddWithValue("@table",table.Name) |> ignore
                if con.State <> ConnectionState.Open then con.Open()
+
+               // Fetches the server version for query generation purposes
+               if versionLookup.IsEmpty then 
+                  let version = System.Version (con :?> SqlConnection).ServerVersion 
+                  versionLookup.Add(version)
+
                use reader = com.ExecuteReader()
                let columns =
                    [ while reader.Read() do
@@ -637,11 +644,10 @@ type internal MSSqlServerProvider(tableNames:string) =
                 parameters.Add(SqlParameter(paramName,value):> IDbDataParameter)
                 paramName
                             
-            let mssqlVersion = 
-                if con.State <> ConnectionState.Open then con.Open()
-                (con :?> SqlConnection).ServerVersion |> System.Version
-                
-            let mssqlPaging = if mssqlVersion.Major >= 11 then MSSQLPagingCompatibility.RowNumber else MSSQLPagingCompatibility.Offset                
+            let mssqlPaging = 
+              match versionLookup.TryPeek() with
+              | true, mssqlVersion when mssqlVersion.Major >= 11 -> MSSQLPagingCompatibility.Offset
+              | _ -> MSSQLPagingCompatibility.RowNumber
 
             let rec fieldNotation (al:alias) (c:SqlColumnType) = 
                 let buildf (c:Condition)= 
