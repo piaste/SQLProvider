@@ -314,7 +314,7 @@ type internal MSSqlServerProvider(tableNames:string, mssqlPaging: MSSQLPagingCom
     let pkLookup = ConcurrentDictionary<string,string list>()
     let tableLookup = ConcurrentDictionary<string,Table>()
     let columnLookup = ConcurrentDictionary<string,ColumnLookup>()
-    let versionLookup = ConcurrentBag<Version>()
+    let mssqlVersion = ConcurrentBag<Version>()
     let relationshipLookup = ConcurrentDictionary<string,Relationship list * Relationship list>()
 
     let fieldNotationAlias(al:alias,col:SqlColumnType) = 
@@ -533,10 +533,10 @@ type internal MSSqlServerProvider(tableNames:string, mssqlPaging: MSSQLPagingCom
                com.Parameters.AddWithValue("@table",table.Name) |> ignore
                if con.State <> ConnectionState.Open then con.Open()
 
-               // Fetches the server version for query generation purposes
-               if versionLookup.IsEmpty then 
-                  let version = System.Version (con :?> SqlConnection).ServerVersion 
-                  versionLookup.Add(version)
+               // While the connection is open, fetches the server version for query generation purposes
+               if mssqlVersion.IsEmpty then                   
+                  let success, version = (con :?> SqlConnection).ServerVersion |> Version.TryParse
+                  if success then mssqlVersion.Add(version)
 
                use reader = com.ExecuteReader()
                let columns =
@@ -640,9 +640,10 @@ type internal MSSqlServerProvider(tableNames:string, mssqlPaging: MSSQLPagingCom
                 paramName
                             
             let mssqlPaging = 
-              match versionLookup.TryPeek() with
-              | true, mssqlVersion when mssqlVersion.Major >= 11 -> MSSQLPagingCompatibility.Offset
-              | _ -> MSSQLPagingCompatibility.RowNumber
+              match mssqlVersion.TryPeek() with
+              // SQL 2008 and earlier do not support OFFSET
+              | true, mssqlVersion when mssqlVersion.Major < 11 -> MSSQLPagingCompatibility.RowNumber
+              | _ -> MSSQLPagingCompatibility.Offset
 
             let rec fieldNotation (al:alias) (c:SqlColumnType) = 
                 let buildf (c:Condition)= 
