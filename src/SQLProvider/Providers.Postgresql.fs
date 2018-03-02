@@ -107,6 +107,25 @@ module PostgreSQL =
 
     // store the enum value for Array; it will be combined later with the generic argument
     let arrayProviderDbType = lazy (Option.get <| parseDbType "Array")        
+
+    let makeArrayTypeMapping rank typeMapping = 
+      let pt = typeMapping.ProviderType
+      // binary-add the array type to the bitflag
+      match pt with
+      | None -> None
+      | Some t ->                                            
+          let providerType = (t ||| arrayProviderDbType.Value)                  
+                                                
+          // .MakeArrayType() would be more elegant, but on Mono it causes
+          // issues due to Npgsql producing Foo[*] arrays (variable lower bound)
+          // instead of Foo[]
+          let sampleArrayOfCorrectRank = Array.CreateInstance(Type.GetType(typeMapping.ClrType), lengths = Array.zeroCreate<int> rank)
+
+          Some { ProviderTypeName = Some "array"
+                 ClrType = sampleArrayOfCorrectRank.GetType().AssemblyQualifiedName
+                 ProviderType = Some providerType
+                 DbType = getDbType providerType
+               }
     
     /// Pairs a CLR type by type object with a value of Npgsql's type enumeration
     let typemap' t = List.tryPick parseDbType >> Option.map (fun dbType -> t, dbType)
@@ -215,8 +234,14 @@ module PostgreSQL =
             | "timestamptz"     -> "timestamp with time zone"
             | x -> x                
 
-        findDbType <- resolveAlias >> mappings.TryFind
-
+        let handleSimpleArray baseTypeMapper (dbTypeName : string) = 
+            if dbTypeName.EndsWith "[]" then              
+                dbTypeName.TrimEnd('[',']') |> baseTypeMapper |> Option.bind (makeArrayTypeMapping 1)
+            else
+                dbTypeName |> baseTypeMapper
+            
+        findDbType <- handleSimpleArray (resolveAlias >> mappings.TryFind)
+    
     let createConnection connectionString =
         try
             Activator.CreateInstance(connectionType.Value,[|box connectionString|]) :?> IDbConnection
@@ -384,31 +409,192 @@ module PostgreSQL =
             tran.Commit()
             return res
         }
+    
+    type private PgFunctionReturnType = 
+      | Void
+      | Scalar of string
+      | Array of string
+      | Record
+      | Table
+
+    [<CustomEquality>]
+    type private PgFunction = 
+      {
+        Oid : int64
+        Namespace : string
+        Name : string
+        ReturnType : PgFunctionReturnType
+        RestrictedToRoles: string list option
+      }
+      with
+        member this.FullName = sprintf "%s.%s" this.Namespace this.Name
+        override this.Equals(that) = 
+          match that with 
+          | :? PgFunction as f -> (f.Oid = this.Oid)
+          | _ -> false
+
+    type private PgArgumentMode = 
+      | In | Out | InOut | Variadic | Table
+
+    type private PgArgument = 
+      { 
+        Ordinal : int
+        Name : string 
+        Type : string
+        Mode : PgArgumentMode
+      }
 
     let getSprocs con =
         let query = sprintf """
-          SELECT 
-             r.specific_name AS id
-	          ,r.routine_schema AS schema_name
-	          ,r.routine_name AS name
-	          ,r.data_type AS returntype
-	          ,COALESCE((
-			          SELECT STRING_AGG(x.param, E'\n')
-			          FROM (
-				          SELECT p.parameter_mode || ';' || COALESCE(p.parameter_name, ('%s' || p.ordinal_position::TEXT)) || ';' || p.data_type AS param
-				          FROM information_schema.parameters p
-				          WHERE p.specific_name = r.specific_name
-				          ORDER BY p.ordinal_position
-				          ) x
-			          ), '') AS args
-          FROM information_schema.routines r
-          NATURAL JOIN information_schema.routine_privileges p
-          WHERE r.routine_schema NOT IN ('pg_catalog', 'information_schema')
-            AND r.data_type <> 'trigger'
-	          AND p.grantee = current_user
-            AND p.privilege_type = 'EXECUTE'
+
+        select
+            p.oid                                         as function_oid
+          , n.nspname                                     as function_namespace
+          , p.proname                                     as function_name
+          , p.proacl                                      as function_permissions
+  
+          , argtype.ordinality                            as arg_ordinal
+          , coalesce(argname, '%s' || argtype.ordinality) as arg_name
+          , format_type(argtype, null)                    as arg_type
+          , coalesce(argmode, 'i')                        as arg_mode
+  
+          , format_type(p.prorettype, NULL)               as ret_type
+          , p.proretset                                   as ret_setof
+
+        from pg_proc p
+        join pg_namespace n on p.pronamespace = n.oid
+        left join lateral unnest(coalesce(proallargtypes, proargtypes)) with ordinality as argtype on (format_type(argtype, null) not in ('trigger', 'internal'))
+        left join lateral unnest(proargnames) with ordinality as argname on argname.ordinality = argtype.ordinality
+        left join lateral unnest(proargmodes) with ordinality as argmode on argmode.ordinality = argtype.ordinality
+
+        where n.nspname not in ('pg_catalog', 'information_schema')
+        and format_type(p.prorettype, NULL) not in ('trigger', 'internal')
+          
         """
         let query' = query ANONYMOUS_PARAMETER_NAME
+
+        Sql.executeSqlAsDataTable createCommand query' con
+        |> DataTable.groupBy (fun r ->
+
+            let pgFunction =
+              { Oid = Sql.dbUnbox<int64> r.["function_oid"]
+                Namespace = Sql.dbUnbox<string> r.["function_namespace"]
+                Name = Sql.dbUnbox<string> r.["function_name"]
+
+                ReturnType = 
+                  match Sql.dbUnbox<string> r.["ret_type"] with
+                  | "void" -> Void
+                  | "record" -> if Sql.dbUnbox<bool> r.["ret_setof"] then PgFunctionReturnType.Table else Record
+                  | s -> if Sql.dbUnbox<bool> r.["ret_setof"] then Array s else Scalar s
+
+                RestrictedToRoles = 
+                  match Sql.dbUnbox<string> r.["function_permissions"] with
+                  | null -> 
+                     // a null permission list means it'sa  publicly available function (the default)
+                     None
+
+                  | permissions -> 
+                     
+                     // explicitly granted permissions will appear in the format:
+                     // 
+                     //    {=X/postgres,user1=X/admin,user2=X/user1}
+                     // 
+                     // where for example 'user1=X/admin' means:
+                     //   user1 = the grantee role (empty string indicates it's granted to everyone)
+                     //   X = the permission being granted, in this cases execution (the only grantable permission for functions)
+                     //   admin = the role that granted the permission
+                     
+                     let grants = permissions.TrimStart('{').TrimEnd('}').Split(',')
+                     
+                     let grantees = grants |> Array.map (fun grant -> grant.Split('/').[0].Split('=').[0])
+                       
+                     if (Array.exists String.IsNullOrEmpty grantees) then None else Some (grantees |> Array.toList)
+                
+
+              }
+
+            let pgParameter = 
+              match Sql.dbUnbox<string> r.["arg_type"] with
+              | null -> None
+              | t ->             
+                Some { 
+                  Ordinal = Sql.dbUnbox<int> r.["arg_ordinal"]
+                  Name = Sql.dbUnbox<string> r.["arg_name"]
+                  Type = t
+                  Mode = match Sql.dbUnbox<string> r.["arg_mode"] with
+                         | "i" -> In | "o" -> Out | "b" -> InOut | "v" -> Variadic | "t" -> Table
+                         | m -> failwithf "Unrecognized argument mode '%s' for function '%s'" m pgFunction.FullName
+                }
+
+            pgFunction, pgParameter
+        )
+        |> Seq.map (fun (pgFunction, pgParameters) -> pgFunction, Seq.choose id pgParameters)
+        |> Seq.choose (fun (pgFunction, pgParameters) ->
+
+            let sprocName = { ProcName = pgFunction.Name; Owner = pgFunction.Namespace; PackageName = "" }
+
+            let parameters =
+              pgParameters
+              |> Seq.fold (fun acc p ->
+              
+                match acc with
+                | None -> None
+                | Some (sprocParams, retColumns) ->
+                    let mappedType = findDbType p.Type
+                    match mappedType with
+                    | None -> 
+                      // If the parameter cannot be mapped and is required (i.e. is input or input/output) bail out early, otherwise continue
+                      match p.Mode with
+                      | In | InOut | Variadic -> None
+                      | _ -> acc
+                    | Some typeMapping ->
+                      match p.Mode with
+                      | In -> 
+                        let sprocParam = QueryParameter.Create(p.Name, p.Ordinal, typeMapping, ParameterDirection.Input)
+                        Some (sprocParam :: sprocParams, retColumns)
+
+                      | Variadic ->
+                         
+                        let sprocParam = 
+                          match (makeArrayTypeMapping 1 typeMapping) with
+                          | None -> QueryParameter.Create(p.Name, p.Ordinal, typeMapping, ParameterDirection.Output)
+                          | Some arrayTypeMapping -> QueryParameter.Create(p.Name, p.Ordinal, arrayTypeMapping, ParameterDirection.Output)
+                        Some (sprocParam :: sprocParams, retColumns)
+
+                      | InOut ->                         
+                        let sprocParam = QueryParameter.Create(p.Name, p.Ordinal, typeMapping, ParameterDirection.InputOutput)
+                        Some (sprocParam :: sprocParams, sprocParam :: retColumns)
+
+                      | Out ->
+                        match pgFunction.ReturnType with
+                        | Void | Record | Scalar _ ->
+                           let sprocParam = QueryParameter.Create(p.Name, p.Ordinal, typeMapping, ParameterDirection.Output)
+                           Some (sprocParams, sprocParam :: retColumns)
+                        | Array t when t = p.Type ->
+                           let sprocParam = 
+                             match (makeArrayTypeMapping 1 typeMapping) with
+                             | None -> QueryParameter.Create(p.Name, p.Ordinal, typeMapping, ParameterDirection.Output)
+                             | Some arrayTypeMapping -> QueryParameter.Create(p.Name, p.Ordinal, arrayTypeMapping, ParameterDirection.Output)
+                           Some (sprocParams, sprocParam :: retColumns)
+                        | _ -> acc // Shouldn't be possible, so we ignore it
+                       
+                      | Table ->                       
+
+
+
+
+                       
+
+              ) (Some ([], []))
+
+            match parameters with
+            | None -> None
+            | Some (sprocParams, retColumns) ->
+                Some <| Root("Functions", Sproc({ Name = sprocName
+                                                  Params = (fun _ -> sprocParams)
+                                                  ReturnColumns = (fun _ _ -> retColumns) }))
+        )
+        |> ignore
 
         Sql.executeSqlAsDataTable createCommand query' con
         |> DataTable.mapChoose (fun r ->
@@ -700,26 +886,7 @@ type internal PostgresqlProvider(resolutionPath, owner, referencedAssemblies) =
                                         baseDataType
                                     | n ->
                                         // array column: we convert the base type to a type mapping for the array
-                                        baseDataType
-                                        |> Option.bind (fun m -> 
-                                            let pt = m.ProviderType
-                                            // binary-add the array type to the bitflag
-                                            match pt with
-                                            | None -> None
-                                            | Some t ->                                            
-                                                let providerType = (t ||| PostgreSQL.arrayProviderDbType.Value)                  
-                                                
-                                                // .MakeArrayType() would be more elegant, but on Mono it causes
-                                                // issues due to Npgsql producing Foo[*] arrays (variable lower bound)
-                                                // instead of Foo[]
-                                                let sampleArrayOfCorrectRank = Array.CreateInstance(Type.GetType(m.ClrType), lengths = Array.zeroCreate<int> dimensions)
-
-                                                Some { ProviderTypeName = Some "array"
-                                                       ClrType = sampleArrayOfCorrectRank.GetType().AssemblyQualifiedName
-                                                       ProviderType = Some providerType
-                                                       DbType = PostgreSQL.getDbType providerType
-                                                     }
-                                        )
+                                        baseDataType |> Option.bind (PostgreSQL.makeArrayTypeMapping dimensions)
                                                                 
                                 match typeMapping with
                                 | None ->                                                     
