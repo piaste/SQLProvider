@@ -490,7 +490,7 @@ module PostgreSQL =
                 RestrictedToRoles = 
                   match Sql.dbUnbox<string> r.["function_permissions"] with
                   | null -> 
-                     // a null permission list means it'sa  publicly available function (the default)
+                     // a null permission list means it's a publicly available function (the default)
                      None
 
                   | permissions -> 
@@ -565,20 +565,24 @@ module PostgreSQL =
                         let sprocParam = QueryParameter.Create(p.Name, p.Ordinal, typeMapping, ParameterDirection.InputOutput)
                         Some (sprocParam :: sprocParams, sprocParam :: retColumns)
 
-                      | Out ->
+                      | Out | Table ->
                         match pgFunction.ReturnType with
                         | Void | Record | Scalar _ ->
                            let sprocParam = QueryParameter.Create(p.Name, p.Ordinal, typeMapping, ParameterDirection.Output)
                            Some (sprocParams, sprocParam :: retColumns)
+
                         | Array t when t = p.Type ->
                            let sprocParam = 
                              match (makeArrayTypeMapping 1 typeMapping) with
                              | None -> QueryParameter.Create(p.Name, p.Ordinal, typeMapping, ParameterDirection.Output)
                              | Some arrayTypeMapping -> QueryParameter.Create(p.Name, p.Ordinal, arrayTypeMapping, ParameterDirection.Output)
                            Some (sprocParams, sprocParam :: retColumns)
-                        | _ -> acc // Shouldn't be possible, so we ignore it
+                        
+                        | PgFunctionReturnType.Table ->                       
+                        
+                        | _ -> acc // Shouldn't be possible
                        
-                      | Table ->                       
+                        
 
 
 
