@@ -394,11 +394,6 @@ let fullName () =
     |> Assert.IsNotNullOrEmpty
 
 //********************** Type test ***************************//
-let point (x,y) = NpgsqlTypes.NpgsqlPoint(x,y)
-let circle (x,y,r) = NpgsqlTypes.NpgsqlCircle (point (x,y), r)
-let path pts = NpgsqlTypes.NpgsqlPath(pts: NpgsqlTypes.NpgsqlPoint [])
-let polygon pts = NpgsqlTypes.NpgsqlPolygon(pts: NpgsqlTypes.NpgsqlPoint [])
-
 open Microsoft.FSharp.Quotations
 open Microsoft.FSharp.Quotations.Patterns
 
@@ -452,19 +447,22 @@ let ``Create and print PostgreSQL specific types``() =
   tt.Xml0 <- Some("xml")
 
 
-  // Mapping SQL to types originating in Npgsql currently does not work due to type provider SDK issues.
-  // See: https://github.com/fsprojects/FSharp.TypeProviders.SDK/issues/173
-  //
-  //tt.Box0 <- Some(NpgsqlTypes.NpgsqlBox(0.0, 1.0, 2.0, 3.0))
-  //tt.Cidr0 <- Some(NpgsqlTypes.NpgsqlInet("0.0.0.0/24"))
-  //tt.Circle0 <- Some(NpgsqlTypes.NpgsqlCircle(0.0, 1.0, 2.0))
-  //tt.Line0 <- Some(NpgsqlTypes.NpgsqlLine())
-  //tt.Lseg0 <- Some(NpgsqlTypes.NpgsqlLSeg())
-  //tt.Path0 <- Some(path [| point (0.0, 0.0); point (0.0, 1.0); point (1.0, 0.0) |])
-  //tt.Point0 <- Some(point (5.0, 5.0))
-  //tt.Polygon0 <- Some(polygon [| point (0.0, 0.0); point (0.0, 1.0); point (1.0, 1.0) |])
-  //tt.Tsquery0 <- Some(NpgsqlTypes.NpgsqlTsQuery.Parse("test"))
-  //tt.Tsvector0 <- Some(NpgsqlTypes.NpgsqlTsVector.Parse("test"))
+  // These types are defined in the Npgsql assembly
+  let point (x,y) = NpgsqlTypes.NpgsqlPoint(x,y)
+  let circle (x,y,r) = NpgsqlTypes.NpgsqlCircle (point (x,y), r)
+  let path pts = NpgsqlTypes.NpgsqlPath(pts: NpgsqlTypes.NpgsqlPoint [])
+  let polygon pts = NpgsqlTypes.NpgsqlPolygon(pts: NpgsqlTypes.NpgsqlPoint [])
+
+  tt.Box0 <- Some(NpgsqlTypes.NpgsqlBox(0.0, 1.0, 2.0, 3.0))
+  tt.Cidr0 <- Some(NpgsqlTypes.NpgsqlInet("0.0.0.0/24"))
+  tt.Circle0 <- Some(NpgsqlTypes.NpgsqlCircle(0.0, 1.0, 2.0))
+  tt.Line0 <- Some(NpgsqlTypes.NpgsqlLine())
+  tt.Lseg0 <- Some(NpgsqlTypes.NpgsqlLSeg())
+  tt.Path0 <- Some(path [| point (0.0, 0.0); point (0.0, 1.0); point (1.0, 0.0) |])
+  tt.Point0 <- Some(point (5.0, 5.0))
+  tt.Polygon0 <- Some(polygon [| point (0.0, 0.0); point (0.0, 1.0); point (1.0, 1.0) |])
+  tt.Tsquery0 <- Some(NpgsqlTypes.NpgsqlTsQuery.Parse("test"))
+  tt.Tsvector0 <- Some(NpgsqlTypes.NpgsqlTsVector.Parse("test"))
   
   ctx.SubmitUpdates()
     

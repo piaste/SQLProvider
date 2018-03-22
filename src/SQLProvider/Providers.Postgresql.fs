@@ -193,7 +193,7 @@ module PostgreSQL =
                 function
                 | name, Some(clrType, providerType) -> 
                     Some (name, { ProviderTypeName = Some(name)
-                                  ClrType = clrType.AssemblyQualifiedName
+                                  ClrType = clrType.PartiallyQualifiedName
                                   DbType = getDbType providerType
                                   ProviderType = Some(providerType) })    
                 | _ -> None
