@@ -168,9 +168,9 @@ module internal Utilities =
         | :? String -> sprintf "'%s'" (value.ToString().Replace("'", ""))
         | _ -> value.ToString()
 
-type internal Type with
-    member this.PartiallyQualifiedName = 
-        sprintf "%s, %s" this.FullName (this.Assembly.GetName().Name)
+    type Type with
+        member this.PartiallyQualifiedName = 
+            sprintf "%s, %s" this.FullName (this.Assembly.GetName().Name)
 
 module ConfigHelpers = 
     
