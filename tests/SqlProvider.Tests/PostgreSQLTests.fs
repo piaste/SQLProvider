@@ -169,6 +169,19 @@ let employeesJob () =
             where ((dept.DepartmentName |=| [|"Sales";"Executive"|]) && emp.FirstName =% "David")
             select (emp.FirstName, emp.LastName, manager.FirstName, manager.LastName )
     } |> Seq.toList |> Assert.IsNotEmpty
+    
+[<Test>]
+let ``simple left join``() = 
+    let ctx = HR.GetDataContext() 
+    let qry = 
+        query {
+            for dept in ctx.Public.Departments do
+            for manager in (!!) emp.``public.employees by employee_id`` do
+            select (dept.DepartmentName, manager.FirstName)
+        } |> Seq.toArray
+    
+    let hasNulls = qry |> Seq.map(snd) |> Seq.filter(Option.isNone) |> Seq.isEmpty |> not
+    Assert.IsTrue hasNulls
 
 //Can map SQLEntities to a domain type
 [<Test>]
