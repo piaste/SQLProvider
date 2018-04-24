@@ -176,7 +176,7 @@ let ``simple left join``() =
     let qry = 
         query {
             for dept in ctx.Public.Departments do
-            for manager in (!!) emp.``public.employees by employee_id`` do
+            for manager in (!!) dept.``public.employees by employee_id`` do
             select (dept.DepartmentName, manager.FirstName)
         } |> Seq.toArray
     
