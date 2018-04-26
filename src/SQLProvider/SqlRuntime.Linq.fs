@@ -433,7 +433,7 @@ module internal QueryImplementation =
              let rec processSelectManys (toAlias:string) (inExp:Expression) (outExp:SqlExp) (projectionParams : ParameterExpression list) (source:IWithSqlService) =
                 let (|OptionalOuterJoin|) e =
                     match e with
-                    | MethodCall(None, (!!), [inner]) -> (true,inner)
+                    | MethodCall(None, MethodWithName "op_BangBang", [inner]) -> (true,inner)
                     | _ -> (false,e)
                 match inExp with
                 | MethodCall(None, (MethodWithName "SelectMany"), [ createRelated ; OptionalQuote (Lambda([_], inner)); OptionalQuote (Lambda(projectionParams,_)) ]) ->
