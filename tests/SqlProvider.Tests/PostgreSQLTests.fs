@@ -177,7 +177,7 @@ let ``simple left join``() =
         query {
             for dept in ctx.Public.Departments do
             for manager in (!!) dept.``public.employees by employee_id`` do
-            select (dept.DepartmentName, manager.FirstName)
+            select (dept.DepartmentName, manager.LastName)
         } |> Seq.toArray
     
     let hasNulls = qry |> Seq.map(snd) |> Seq.filter(Option.isNone) |> Seq.isEmpty |> not
