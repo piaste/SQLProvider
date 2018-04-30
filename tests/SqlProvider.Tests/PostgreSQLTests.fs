@@ -180,9 +180,11 @@ let ``simple left join``() =
             select (dept.DepartmentName, manager.LastName)
         } |> Seq.toArray
     
-    printfn "%A" qry
-    let hasNulls = qry |> Seq.map(snd) |> Seq.filter( (=) Unchecked.defaultof<_>) |> Seq.isEmpty |> not
-    Assert.IsTrue hasNulls
+    let mapResults = Map.ofSeq qry
+    printfn "%A" mapResults
+
+    Assert.IsTrue (qry.["Administration"] |> Option.isSome)
+    Assert.IsTrue (qry.["Benefits"] |> Option.isNone)
 
 //Can map SQLEntities to a domain type
 [<Test>]

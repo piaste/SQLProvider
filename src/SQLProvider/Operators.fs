@@ -149,7 +149,7 @@ module Operators =
     /// Not Like
     let (<>%) (a:'a) (b:string) = false
     /// Left join
-    let (!!) (a:IQueryable<_>) = a
+    let (!!) (a:IQueryable<'t>) = Unchecked.defaultof<IQueryable<'t option>>
     
     /// Standard Deviation
     let StdDev (a:'a) = 1m
