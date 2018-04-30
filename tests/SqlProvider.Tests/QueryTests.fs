@@ -490,8 +490,8 @@ let ``simple select where inner-join box-check and not in queryable query``() =
         query {
             for cust in dc.Main.Customers do
             for ord in (!!) cust.``main.Orders by CustomerID`` do
-            where (box(ord.OrderDate) = null &&
-               not(query1.Contains(cust.CustomerId)))
+            where (ord.IsNone) &&
+               not(query1.Contains(cust.CustomerId))
             select cust.CustomerId
         } |> Seq.toArray
     let res = query

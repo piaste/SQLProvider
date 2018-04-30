@@ -177,7 +177,7 @@ let ``simple left join``() =
         query {
             for dept in ctx.Public.Departments do
             for manager in (!!) dept.``public.employees by employee_id`` do
-            select (dept.DepartmentName, manager.LastName)
+            select (dept.DepartmentName, manager.Value.LastName)
         } |> Seq.toArray
     
     let mapResults = Map.ofSeq qry
