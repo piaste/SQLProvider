@@ -180,6 +180,7 @@ let ``simple left join``() =
             select (dept.DepartmentName, manager.LastName)
         } |> Seq.toArray
     
+    printfn "%A" qry
     let hasNulls = qry |> Seq.map(snd) |> Seq.filter( (=) Unchecked.defaultof<_>) |> Seq.isEmpty |> not
     Assert.IsTrue hasNulls
 
