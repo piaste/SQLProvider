@@ -1744,7 +1744,7 @@ let ``simple left join``() =
         query {
             for o in dc.Main.Orders do
             for customer in (!!) o.``main.Customers by CustomerID`` do
-            select (o.CustomerId, Option.map (fun c -> c.CustomerId) customer)
+            select (o.CustomerId, customer |> Option.map (fun c -> c.CustomerId))
         } |> Seq.toArray
     
     let hasNulls = qry |> Seq.map(fst) |> Seq.filter(Option.isNone) |> Seq.isEmpty |> not

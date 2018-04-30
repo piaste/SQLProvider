@@ -183,8 +183,8 @@ let ``simple left join``() =
     let mapResults : Map<string, string option> = Map.ofList qry
     printfn "%A" mapResults
 
-    Assert.IsTrue (qry.["Administration"] |> Option.isSome)
-    Assert.IsTrue (qry.["Benefits"] |> Option.isNone)
+    Assert.IsTrue (mapResults.["Administration"] |> Option.isSome)
+    Assert.IsTrue (mapResults.["Benefits"] |> Option.isNone)
 
 //Can map SQLEntities to a domain type
 [<Test>]
