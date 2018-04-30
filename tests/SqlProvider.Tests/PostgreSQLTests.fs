@@ -177,10 +177,10 @@ let ``simple left join``() =
         query {
             for dept in ctx.Public.Departments do
             for manager in (!!) dept.``public.employees by employee_id`` do
-            select (dept.DepartmentName, manager.Value.LastName)
-        } |> Seq.toArray
+            select (dept.DepartmentName, manager |> Option.map (fun m -> m.LastName))
+        } |> Seq.toList
     
-    let mapResults = Map.ofSeq qry
+    let mapResults : Map<string, string option> = Map.ofList qry
     printfn "%A" mapResults
 
     Assert.IsTrue (qry.["Administration"] |> Option.isSome)

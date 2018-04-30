@@ -490,8 +490,7 @@ let ``simple select where inner-join box-check and not in queryable query``() =
         query {
             for cust in dc.Main.Customers do
             for ord in (!!) cust.``main.Orders by CustomerID`` do
-            where (ord.IsNone) &&
-               not(query1.Contains(cust.CustomerId))
+            where ((ord.IsNone) && not(query1.Contains(cust.CustomerId)))
             select cust.CustomerId
         } |> Seq.toArray
     let res = query
@@ -1744,8 +1743,8 @@ let ``simple left join``() =
     let qry = 
         query {
             for o in dc.Main.Orders do
-            for c in (!!) o.``main.Customers by CustomerID`` do
-            select (o.CustomerId, c.CustomerId)
+            for customer in (!!) o.``main.Customers by CustomerID`` do
+            select (o.CustomerId, Option.map (fun c -> c.CustomerId) customer)
         } |> Seq.toArray
     
     let hasNulls = qry |> Seq.map(fst) |> Seq.filter(Option.isNone) |> Seq.isEmpty |> not
