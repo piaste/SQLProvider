@@ -169,13 +169,13 @@ let ``Conflict resolution is correctly applied``() =
     ent.OnConflict <- FSharp.Data.Sql.Common.OnConflict.Update
     dc.SubmitUpdates()    
     
-    Assert.AreEqual(getCurrentAddress |> Seq.head, newerAddress)
+    Assert.AreEqual(getCurrentAddress |> Seq.head, newAddress)
 
     // Works when creating a fresh entity
     let ent2 = createCustomer dc
     let newerAddress = "FsProjects 3.0"    
-    ent.Address <- newerAddress
-    ent.OnConflict <- FSharp.Data.Sql.Common.OnConflict.Update
+    ent2.Address <- newerAddress
+    ent2.OnConflict <- FSharp.Data.Sql.Common.OnConflict.Update
     dc.SubmitUpdates()    
     
     Assert.AreEqual(getCurrentAddress |> Seq.head, newerAddress)
