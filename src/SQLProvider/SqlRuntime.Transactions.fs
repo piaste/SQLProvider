@@ -41,6 +41,7 @@ module internal TransactionUtils =
         | System.Transactions.IsolationLevel.Chaos -> IsolationLevel.Chaos
         | System.Transactions.IsolationLevel.Unspecified -> IsolationLevel.Unspecified
         | _ -> failwithf "Unhandled System.Transactions.IsolationLevel value: %A." isolationLevel
+        
 
     let ensureTransaction (transactionOptions : TransactionOptions) =
         if transactionOptions.IsolationLevel = IsolationLevel.DontCreateTransaction then
