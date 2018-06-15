@@ -5,8 +5,8 @@ open System.Reflection
 [<assembly: AssemblyTitleAttribute("SQLProvider")>]
 [<assembly: AssemblyProductAttribute("SQLProvider")>]
 [<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access.")>]
-[<assembly: AssemblyVersionAttribute("1.1.42.1")>]
-[<assembly: AssemblyFileVersionAttribute("1.1.42.1")>]
+[<assembly: AssemblyVersionAttribute("1.1.43.1")>]
+[<assembly: AssemblyFileVersionAttribute("1.1.43.1")>]
 do ()
 
 module internal AssemblyVersionInformation =
