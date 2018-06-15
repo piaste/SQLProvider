@@ -13,5 +13,5 @@ module internal AssemblyVersionInformation =
     let [<Literal>] AssemblyTitle = "SQLProvider"
     let [<Literal>] AssemblyProduct = "SQLProvider"
     let [<Literal>] AssemblyDescription = "Type providers for SQL database access."
-    let [<Literal>] AssemblyVersion = "1.1.42.1"
-    let [<Literal>] AssemblyFileVersion = "1.1.42.1"
+    let [<Literal>] AssemblyVersion = "1.1.43.1"
+    let [<Literal>] AssemblyFileVersion = "1.1.43.1"
