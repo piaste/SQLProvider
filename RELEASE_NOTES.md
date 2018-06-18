@@ -1,3 +1,6 @@
+### 1.1.43.1 - 03.05.2019
+* sdsdsd
+
 ### 1.1.42 - 03.05.2018
 * Context schema cache support PR #545
 * Improved option type support in convertTypes. PR #544

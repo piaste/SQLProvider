@@ -52,7 +52,8 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                     
         let rootType, prov, con = 
             let rootType = ProvidedTypeDefinition(sqlRuntimeInfo.RuntimeAssembly,FSHARP_DATA_SQL,rootTypeName,Some typeof<obj>, isErased=true)
-            let prov = ProviderBuilder.createProvider dbVendor resolutionPath config.ReferencedAssemblies config.RuntimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary
+            let prov = ProviderBuilder.createProvider { Vendor = dbVendor; ResolutionPath = resolutionPath; ReferencedAssemblies = config.ReferencedAssemblies; RuntimeAssembly = config.RuntimeAssembly;
+                                                        Owner = owner; TableNames = tableNames; ContextSchemaPath = contextSchemaPath; ODBCQuote = odbcquote; SQLiteLibrary = sqliteLibrary }
             match prov.GetSchemaCache().IsOffline with
             | false ->
                 let con = prov.CreateConnection conString

@@ -13,7 +13,29 @@ open System.Collections.Concurrent
 module internal ProviderBuilder =
     open FSharp.Data.Sql.Providers
 
-    let createProvider vendor resolutionPath referencedAssemblies runtimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary =
+    // This type is necessary due to an infernally devious bug. 
+    
+    // The only invocation of `createProvider` that the compiler ever 'sees' is the one at runtime. And since that invocation only ever passes
+    // an empty string to ContextSchemaPath, if the function were to take separate arguments, the `contextSchemaPath` argument would get optimized away.
+    // But the design-time component actually uses that argument! This discrepancy leads to enigmatic compilation failures on *some* environments, 
+    // because the design-time connection appears to fail for unrelated reasons.
+
+    // Putting the arguments in a dedicated internal type prevents the compiler from optimizing them away.
+    type ProviderBuilderOptions = 
+      {
+        Vendor : DatabaseProviderTypes
+        ResolutionPath : string
+        ReferencedAssemblies : string array
+        RuntimeAssembly : string
+        Owner : string
+        TableNames : string
+        ContextSchemaPath : string
+        ODBCQuote : OdbcQuoteCharacter
+        SQLiteLibrary : SQLiteLibrary
+      }
+
+    let createProvider { Vendor = vendor; ResolutionPath = resolutionPath; ReferencedAssemblies = referencedAssemblies; RuntimeAssembly = runtimeAssembly;
+                         Owner = owner; TableNames = tableNames; ContextSchemaPath = contextSchemaPath; ODBCQuote = odbcquote; SQLiteLibrary = sqliteLibrary } =
         match vendor with
         | DatabaseProviderTypes.MSSQLSERVER -> MSSqlServerProvider(contextSchemaPath, tableNames) :> ISqlProvider
         | DatabaseProviderTypes.SQLITE -> SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary) :> ISqlProvider
@@ -27,15 +49,16 @@ module internal ProviderBuilder =
         | DatabaseProviderTypes.FIREBIRD -> FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, odbcquote) :> ISqlProvider
         | _ -> failwith ("Unsupported database provider: " + vendor.ToString())
 
-type public SqlDataContext (typeName, connectionString:string, providerType, resolutionPath, referencedAssemblies, runtimeAssembly, owner, caseSensitivity, tableNames, contextSchemaPath, odbcquote, sqliteLibrary, transactionOptions, commandTimeout:Option<int>, sqlOperationsInSelect) =
-    let pendingChanges = System.Collections.Concurrent.ConcurrentDictionary<SqlEntity, DateTime>()
+type public SqlDataContext (typeName, connectionString:string, providerType, resolutionPath, referencedAssemblies, runtimeAssembly, owner, caseSensitivity, tableNames, contextSchemaPath : string, odbcquote, sqliteLibrary, transactionOptions, commandTimeout:Option<int>, sqlOperationsInSelect) =
+    let pendingChanges = ConcurrentDictionary<SqlEntity, DateTime>()
     static let providerCache = ConcurrentDictionary<string,ISqlProvider>()
     let myLock2 = new Object();
 
     let provider =
         providerCache.GetOrAdd(typeName,
-            fun typeName -> 
-                let prov : ISqlProvider = ProviderBuilder.createProvider providerType resolutionPath referencedAssemblies runtimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary
+            fun typeName ->               
+                let prov : ISqlProvider = ProviderBuilder.createProvider { Vendor = providerType; ResolutionPath = resolutionPath; ReferencedAssemblies = referencedAssemblies; RuntimeAssembly = runtimeAssembly;
+                                                                           Owner = owner; TableNames = tableNames; ContextSchemaPath = ""; ODBCQuote = odbcquote; SQLiteLibrary = sqliteLibrary }
                 if not (prov.GetSchemaCache().IsOffline) then
                     use con = prov.CreateConnection(connectionString)
                     con.Open()
