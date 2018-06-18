@@ -35,7 +35,9 @@ type public SqlDataContext (typeName, connectionString:string, providerType, res
     let provider =
         providerCache.GetOrAdd(typeName,
             fun typeName -> 
-                let prov : ISqlProvider = ProviderBuilder.createProvider providerType resolutionPath referencedAssemblies runtimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary
+                // at runtime we don't have the offline schema cache, so we pass it as empty to avoid loading a file from disk
+                let noContextSchemaPath = ""
+                let prov : ISqlProvider = ProviderBuilder.createProvider providerType resolutionPath referencedAssemblies runtimeAssembly owner tableNames noContextSchemaPath odbcquote sqliteLibrary
                 if not (prov.GetSchemaCache().IsOffline) then
                     use con = prov.CreateConnection(connectionString)
                     con.Open()
