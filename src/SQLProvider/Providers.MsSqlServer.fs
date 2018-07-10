@@ -871,16 +871,21 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
                         let k = if k <> "" then k elif baseAlias <> "" then baseAlias else baseTable.Name
                         if v.Count = 0 then   // if no columns exist in the projection then get everything
                             for col in schemaCache.Columns.[cols] |> Seq.map (fun c -> c.Key) do
-                                if singleEntity then yield sprintf "[%s].[%s] as '%s'" k col col
-                                else yield sprintf "[%s].[%s] as '[%s].[%s]'" k col k col
+                                let escapedK = k.Replace("'", "''")
+                                let escapedCol = col.Replace("'", "''")
+                                if singleEntity then yield sprintf "[%s].[%s] as '%s'" k col escapedCol
+                                else yield sprintf "[%s].[%s] as '[%s].[%s]'" k col escapedK escapedCol
                         else
                             for colp in v |> Seq.distinct do
                                 match colp with
                                 | EntityColumn col ->
-                                    if singleEntity then yield sprintf "[%s].[%s] as '%s'" k col col
-                                    else yield sprintf "[%s].[%s] as '[%s].[%s]'" k col k col
+                                    let escapedK = k.Replace("'", "''")
+                                    let escapedCol = col.Replace("'", "''")
+                                    if singleEntity then yield sprintf "[%s].[%s] as '%s'" k col escapedCol
+                                    else yield sprintf "[%s].[%s] as '[%s].[%s]'" k col escapedK escapedCol
                                 | OperationColumn(n,op) ->
-                                    yield sprintf "%s as '%s'" (fieldNotation k op) n|])
+                                    let escapedN = n.Replace("'", "''")
+                                    yield sprintf "%s as '%s'" (fieldNotation k op) escapedN |])
                                     
             // Create sumBy, minBy, maxBy, ... field columns
             let columns =
