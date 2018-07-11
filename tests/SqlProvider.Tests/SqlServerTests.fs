@@ -233,18 +233,6 @@ let ``test that selecting whole records with unusual characters in the name work
     }     
     |> Seq.toList 
     |> Assert.IsEmpty
-    
-[<TestCase(connStr2008R2)>]
-[<TestCase(connStr2017)>]
-let ``test that selecting whole records with unusual characters in the name works``  (runtimeConnStr) =
-    let ctx = HR.GetDataContext(connectionString = runtimeConnStr)
-    
-    query {
-        for record in ctx.Dbo.Oddities do
-        select record
-    }     
-    |> Seq.toList 
-    |> Assert.IsNotEmpty
 
 [<TestCase(connStr2008R2)>]
 [<TestCase(connStr2017)>]
