@@ -24,6 +24,7 @@ module MSSqlServer =
 
     type String with
       member inline this.EscapeQuotes = this.Replace("'", "''")
+      // TODO: handle brackets as well
       member inline this.EscapeBrackets = this.Replace("]", "]]")
 
     let createTypeMappings (con:IDbConnection) =
@@ -367,19 +368,19 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
         match haspk, pk with
         | true, [itm] ->
             if values |> Array.isEmpty then
-                ~~(sprintf "INSERT INTO [%s].[%s] OUTPUT inserted.[%s] DEFAULT VALUES;" entity.Table.Schema.EscapeBrackets entity.Table.Name.EscapeBrackets itm.EscapeBrackets)
+                ~~(sprintf "INSERT INTO [%s].[%s] OUTPUT inserted.[%s] DEFAULT VALUES;" entity.Table.Schema entity.Table.Name itm)
             else
                 ~~(sprintf "INSERT INTO [%s].[%s] (%s) OUTPUT inserted.[%s] VALUES (%s);"
-                    entity.Table.Schema.EscapeBrackets entity.Table.Name.EscapeBrackets
+                    entity.Table.Schema entity.Table.Name
                     (String.Join(",",columnNames))
-                    itm.EscapeBrackets
+                    itm
                     (String.Join(",",values |> Array.map(fun p -> p.ParameterName))))
         | _ -> 
             if values |> Array.isEmpty then
-                ~~(sprintf "INSERT INTO [%s].[%s] DEFAULT VALUES;" entity.Table.Schema.EscapeBrackets entity.Table.Name.EscapeBrackets )
+                ~~(sprintf "INSERT INTO [%s].[%s] DEFAULT VALUES;" entity.Table.Schema entity.Table.Name )
             else
                 ~~(sprintf "INSERT INTO [%s].[%s] (%s) VALUES (%s);"
-                    entity.Table.Schema.EscapeBrackets entity.Table.Name.EscapeBrackets
+                    entity.Table.Schema entity.Table.Name
                     (String.Join(",",columnNames))
                     (String.Join(",",values |> Array.map(fun p -> p.ParameterName))))
 
@@ -422,9 +423,9 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
         | [] -> ()
         | ks -> 
             ~~(sprintf "UPDATE [%s].[%s] SET %s WHERE "
-                entity.Table.Schema.EscapeBrackets entity.Table.Name.EscapeBrackets
-                (String.Join(",", data |> Array.map(fun (c,p) -> sprintf "[%s] = %s" c.EscapeBrackets p.ParameterName ) )))
-            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "[%s] = @pk%i" k.EscapeBrackets i))))
+                entity.Table.Schema entity.Table.Name
+                (String.Join(",", data |> Array.map(fun (c,p) -> sprintf "[%s] = %s" c p.ParameterName ) )))
+            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "[%s] = @pk%i" k i))))
 
         cmd.Parameters.AddRange(data |> Array.map snd)
         pkValues |> List.iteri(fun i pkValue ->
@@ -453,8 +454,8 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
         match pk with
         | [] -> ()
         | ks -> 
-            ~~(sprintf "DELETE FROM [%s].[%s] WHERE " entity.Table.Schema.EscapeBrackets entity.Table.Name.EscapeBrackets)
-            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "[%s] = @id%i" k.EscapeBrackets i))))
+            ~~(sprintf "DELETE FROM [%s].[%s] WHERE " entity.Table.Schema entity.Table.Name)
+            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "[%s] = @id%i" k i))))
 
         cmd.CommandText <- sb.ToString()
         cmd
@@ -653,8 +654,8 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
             res)
 
         member __.GetSprocs(con) = MSSqlServer.connect con MSSqlServer.getSprocs
-        member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT TOP %i * FROM [%s]" amount table.FullName.EscapeBrackets
-        member __.GetIndividualQueryText(table,column) = sprintf "SELECT * FROM [%s].[%s] WHERE [%s].[%s].[%s] = @id" table.Schema.EscapeBrackets table.Name.EscapeBrackets table.Schema.EscapeBrackets table.Name column.EscapeBrackets
+        member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT TOP %i * FROM [%s]" amount table.FullName
+        member __.GetIndividualQueryText(table,column) = sprintf "SELECT * FROM [%s].[%s] WHERE [%s].[%s].[%s] = @id" table.Schema table.Name table.Schema table.Name column
 
         member __.GenerateQueryText(sqlQuery,baseAlias,baseTable,projectionColumns,isDeleteScript, con) =
             let parameters = ResizeArray<_>()
@@ -688,8 +689,8 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
                 let x = fieldNotation
                 let colSprint (colName : string) = 
                     match String.IsNullOrEmpty(al) with
-                    | true -> sprintf "[%s]" colName.EscapeBrackets
-                    | false -> sprintf "[%s].[%s]" al.EscapeBrackets colName.EscapeBrackets
+                    | true -> sprintf "[%s]" colName
+                    | false -> sprintf "[%s].[%s]" al colName
                 match c with
                 // Custom database spesific overrides for canonical functions:
                 | SqlColumnType.CanonicalOperation(cf,col) ->
@@ -877,14 +878,14 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
                         let k = if k <> "" then k elif baseAlias <> "" then baseAlias else baseTable.Name
                         if v.Count = 0 then   // if no columns exist in the projection then get everything
                             for col in schemaCache.Columns.[cols] |> Seq.map (fun c -> c.Key) do
-                                if singleEntity then yield sprintf "[%s].[%s] as '%s'" k.EscapeBrackets col.EscapeBrackets col.EscapeQuotes
-                                else yield sprintf "[%s].[%s] as '[%s].[%s]'" k.EscapeBrackets col.EscapeBrackets k.EscapeQuotes col.EscapeQuotes
+                                if singleEntity then yield sprintf "[%s].[%s] as '%s'" k col col.EscapeQuotes
+                                else yield sprintf "[%s].[%s] as '[%s].[%s]'" k col k.EscapeQuotes col.EscapeQuotes
                         else
                             for colp in v |> Seq.distinct do
                                 match colp with
                                 | EntityColumn col ->
-                                    if singleEntity then yield sprintf "[%s].[%s] as '%s'" k.EscapeBrackets col.EscapeBrackets col.EscapeQuotes
-                                    else yield sprintf "[%s].[%s] as '[%s].[%s]'" k.EscapeBrackets col.EscapeBrackets k.EscapeQuotes col.EscapeQuotes
+                                    if singleEntity then yield sprintf "[%s].[%s] as '%s'" k col col.EscapeQuotes
+                                    else yield sprintf "[%s].[%s] as '[%s].[%s]'" k col k.EscapeQuotes col.EscapeQuotes
                                 | OperationColumn(n,op) ->
                                     yield sprintf "%s as '%s'" (fieldNotation k op) n.EscapeQuotes |])
                                     
@@ -909,7 +910,7 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
                     let joinType = if data.OuterJoin then "LEFT OUTER JOIN " else "INNER JOIN "
                     let destTable = getTable destAlias
                     ~~  (sprintf "%s [%s].[%s] as [%s] on "
-                            joinType destTable.Schema.EscapeBrackets destTable.Name.EscapeBrackets destAlias.EscapeBrackets)
+                            joinType destTable.Schema destTable.Name destAlias)
                     ~~  (String.Join(" AND ", (List.zip data.ForeignKey data.PrimaryKey) |> List.map(fun (foreignKey,primaryKey) ->
                         sprintf "%s = %s"
                             (fieldNotation (if data.RelDirection = RelationshipDirection.Parents then fromAlias else destAlias) foreignKey)
@@ -929,7 +930,7 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
                     ~~ (sprintf "%s %s" (fieldNotation alias column) (if not desc then "DESC " else "")))
 
             if isDeleteScript then
-                ~~(sprintf "DELETE FROM [%s].[%s] " baseTable.Schema.EscapeBrackets baseTable.Name.EscapeBrackets)
+                ~~(sprintf "DELETE FROM [%s].[%s] " baseTable.Schema baseTable.Name)
             else 
                 // SELECT
                 if sqlQuery.Distinct && sqlQuery.Count then ~~(sprintf "SELECT COUNT(DISTINCT %s) " (columns.Substring(0, columns.IndexOf(" as "))))
@@ -950,8 +951,8 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
                 | _ -> ()
                 // FROM
                 let bal = if baseAlias = "" then baseTable.Name else baseAlias
-                ~~(sprintf "FROM [%s].[%s] as [%s] " baseTable.Schema.EscapeBrackets baseTable.Name.EscapeBrackets bal.EscapeBrackets)
-                sqlQuery.CrossJoins |> Seq.iter(fun (a,t) -> ~~(sprintf ", [%s].[%s] as [%s] " t.Schema.EscapeBrackets t.Name.EscapeBrackets a.EscapeBrackets))
+                ~~(sprintf "FROM [%s].[%s] as [%s] " baseTable.Schema baseTable.Name bal)
+                sqlQuery.CrossJoins |> Seq.iter(fun (a,t) -> ~~(sprintf ", [%s].[%s] as [%s] " t.Schema t.Name a))
             fromBuilder()
             // WHERE
             if sqlQuery.Filters.Length > 0 then
@@ -1009,12 +1010,12 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
                     | Some skip, Some take ->
                         outerSb.Append (sb.ToString()) |> ignore
                         outerSb.Append ")" |> ignore
-                        outerSb.Append (sprintf "SELECT %s FROM CTE [%s] WHERE RN BETWEEN %i AND %i" columns baseAlias.EscapeBrackets (skip+1) (skip+take))  |> ignore
+                        outerSb.Append (sprintf "SELECT %s FROM CTE [%s] WHERE RN BETWEEN %i AND %i" columns baseAlias (skip+1) (skip+take))  |> ignore
                         outerSb.ToString()
                     | Some skip, None ->
                         outerSb.Append (sb.ToString()) |> ignore
                         outerSb.Append ")" |> ignore
-                        outerSb.Append (sprintf "SELECT %s FROM CTE [%s] WHERE RN > %i " columns baseAlias.EscapeBrackets skip)  |> ignore
+                        outerSb.Append (sprintf "SELECT %s FROM CTE [%s] WHERE RN > %i " columns baseAlias skip)  |> ignore
                         outerSb.ToString()
                     | _ -> 
                       sb.ToString()
