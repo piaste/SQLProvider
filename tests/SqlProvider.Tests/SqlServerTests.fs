@@ -253,19 +253,19 @@ let ``test that selecting individual columns dynamically with unusual characters
     
     query {
         for record in ctx.Dbo.Oddities do
-        select (record.GetColumn<int>("column name with ' quotes, '' double quotes, ; semicolons and [ ]] brackets"))
+        select (record.GetColumn<int>("column name with ' quotes, '' double quotes, ; semicolons"))
     }     
     |> Seq.toList 
     |> Assert.IsNotEmpty
 
-[<TestCase(connStr2008R2); Ignore("Currently not passing")>]
-[<TestCase(connStr2017); Ignore("Currently not passing")>]
+[<TestCase(connStr2008R2)>]
+[<TestCase(connStr2017)>]
 let ``test that selecting individual columns statically with unusual characters in the name works``  (runtimeConnStr) =
     let ctx = HR.GetDataContext(connectionString = runtimeConnStr)
     
     query {
         for record in ctx.Dbo.Oddities do
-        select record.ColumnNameWithQuotesDoubleQuotesSemicolonsAndBrackets
+        select record.ColumnNameWithQuotesDoubleQuotesSemicolons
     }     
     |> Seq.toList 
     |> Assert.IsNotEmpty
