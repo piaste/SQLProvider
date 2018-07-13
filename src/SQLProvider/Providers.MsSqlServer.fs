@@ -22,8 +22,10 @@ module MSSqlServer =
     let mutable findClrType : (string -> TypeMapping option)  = fun _ -> failwith "!"
     let mutable findDbType : (string -> TypeMapping option)  = fun _ -> failwith "!"
 
+    // Quick patch. Should be better solved by adding escaping functions to ISqlProvider, I think
     type String with
       member inline this.EscapeQuotes = this.Replace("'", "''")
+      member inline this.EscapeDoubleQuotes = this.Replace("\"", "\"\"")
       // TODO: handle brackets as well
       member inline this.EscapeBrackets = this.Replace("]", "]]")
 
@@ -654,7 +656,7 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
             res)
 
         member __.GetSprocs(con) = MSSqlServer.connect con MSSqlServer.getSprocs
-        member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT TOP %i * FROM [%s]" amount table.FullName
+        member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT TOP %i * FROM %s" amount table.FullName.EscapeQuotes.EscapeDoubleQuotes
         member __.GetIndividualQueryText(table,column) = sprintf "SELECT * FROM [%s].[%s] WHERE [%s].[%s].[%s] = @id" table.Schema table.Name table.Schema table.Name column
 
         member __.GenerateQueryText(sqlQuery,baseAlias,baseTable,projectionColumns,isDeleteScript, con) =

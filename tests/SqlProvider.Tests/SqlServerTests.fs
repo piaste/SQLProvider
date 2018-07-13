@@ -228,7 +228,7 @@ let ``test that selecting whole records with unusual characters in the name work
     let ctx = HR.GetDataContext(connectionString = runtimeConnStr)
     
     query {
-        for record in ctx.Dbo.Oddities do
+        for record in ctx.Dbo.OddTableName do
         select record
     }     
     |> Seq.toList 
@@ -240,8 +240,8 @@ let ``test that selecting individual columns dynamically with unusual characters
     let ctx = HR.GetDataContext(connectionString = runtimeConnStr)
     
     query {
-        for record in ctx.Dbo.Oddities do
-        select (record.GetColumn<int>("column name with ' quotes, '' double quotes, ; semicolons"))
+        for record in ctx.Dbo.OddTableName do
+        select (record.GetColumn<int>("odd column name ' '' \" \"\" ; ;;"))
     }     
     |> Seq.toList 
     |> Assert.IsNotEmpty
@@ -252,8 +252,8 @@ let ``test that selecting individual columns statically with unusual characters 
     let ctx = HR.GetDataContext(connectionString = runtimeConnStr)
     
     query {
-        for record in ctx.Dbo.Oddities do
-        select record.ColumnNameWithQuotesDoubleQuotesSemicolons
+        for record in ctx.Dbo.OddTableName do
+        select record.OddColumnName
     }     
     |> Seq.toList 
     |> Assert.IsNotEmpty
