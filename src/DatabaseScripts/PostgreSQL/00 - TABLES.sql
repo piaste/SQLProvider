@@ -149,6 +149,13 @@ CREATE TABLE IF NOT EXISTS postgresql_types
     PRIMARY KEY (postgresql_types_id)
 );
 
+CREATE TABLE IF NOT EXISTS "Odd table name ' '' "" """" ; ;;"
+(
+    "odd column name ' '' "" """" ; ;;" INT PRIMARY KEY
+    -- To implement later
+    -- [column name with ' quotes, '' double quotes, ; semicolons and [ ]] brackets] INT 
+);
+
 CREATE SCHEMA IF NOT EXISTS other_schema;
 
 CREATE TABLE IF NOT EXISTS other_schema.table_in_other_schema (

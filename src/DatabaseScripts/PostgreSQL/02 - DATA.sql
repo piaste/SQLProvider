@@ -440,5 +440,5 @@ Insert into JOB_HISTORY (EMPLOYEE_ID,START_DATE,END_DATE,JOB_ID,DEPARTMENT_ID) v
 
 Insert into JOB_HISTORY (EMPLOYEE_ID,START_DATE,END_DATE,JOB_ID,DEPARTMENT_ID) values (100,to_date('13-JAN-93', 'DD-MON-YY'),to_date('24-JUL-98', 'DD-MON-YY'),'IT_PROG',60);
 
-
+Insert into "Odd table name ' '' "" """" ; ;;" values (1);
 

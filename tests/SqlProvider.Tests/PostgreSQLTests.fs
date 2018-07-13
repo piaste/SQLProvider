@@ -502,6 +502,42 @@ let ``Create and print PostgreSQL specific types``() =
   Assert.AreEqual(interva, """"interval_0": Some 3.00:00:00 => Some 3.00:00:00""")
   Assert.AreEqual(jsonb0 , """"jsonb_0": Some "{ "x": [] }" => Some "{"x": []}"      """.TrimEnd())
 
+//********************** Escaping ********************************//
+
+[<Test>]
+let ``test that selecting whole records with unusual characters in the name works``  () =    
+    let ctx = HR.GetDataContext() 
+    
+    query {
+        for record in ctx.Public.OddTableName do
+        select record
+    }     
+    |> Seq.toList 
+    |> Assert.IsEmpty
+    
+[<Test>]
+let ``test that selecting individual columns dynamically with unusual characters in the name works``  () =
+    let ctx = HR.GetDataContext() 
+    
+    query {
+        for record in ctx.Public.OddTableName do
+        select (record.GetColumn<int>("odd column name ' '' \" \"\" ; ;;"))
+    }     
+    |> Seq.toList 
+    |> Assert.IsNotEmpty
+
+[<Test>]
+let ``test that selecting individual columns statically with unusual characters in the name works``  () =
+    let ctx = HR.GetDataContext() 
+    
+    query {
+        for record in ctx.Public.OddTableName do
+        select record.OddColumnName
+    }     
+    |> Seq.toList 
+    |> Assert.IsNotEmpty
+
+
 //********************** Multiple schemas ***************************//
 
 

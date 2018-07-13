@@ -12,6 +12,7 @@ open FSharp.Data.Sql
 open FSharp.Data.Sql.Transactions
 open FSharp.Data.Sql.Schema
 open FSharp.Data.Sql.Common
+open FSharp.Data.Sql.Common.Utilities
 
 module PostgreSQL =
     let mutable resolutionPath = String.Empty
@@ -499,25 +500,25 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         let columnNames, values = List.unzip columnNamesWithValues
 
         sb.Clear() |> ignore
-        ~~(sprintf "INSERT INTO \"%s\".\"%s\" " entity.Table.Schema entity.Table.Name)
+        ~~(sprintf "INSERT INTO %s " entity.Table.FullName)
 
         match columnNames with
         | [] -> ~~(sprintf "DEFAULT VALUES")
         | _ -> ~~(sprintf "(%s) VALUES (%s)"
-                    (String.Join(",",columnNames |> List.map (fun c -> sprintf "\"%s\"" c)))
-                    (String.Join(",",values |> List.map(fun p -> p.ParameterName))))
+                    (String.Join(",", columnNames |> List.map quoteWhiteSpace))
+                    (String.Join(",", values |> List.map(fun p -> p.ParameterName))))
 
         match entity.OnConflict with
         | Throw -> ()
         | Update ->
           ~~(sprintf " ON CONFLICT (%s) DO UPDATE SET %s "                
                 (String.Join(",", pk |> List.map (sprintf "\"%s\"")))
-                (String.Join(",", columnNamesWithValues |> List.map(fun (c,p) -> sprintf "\"%s\" = %s" c p.ParameterName ) )))
+                (String.Join(",", columnNamesWithValues |> List.map(fun (c,p) -> sprintf "%s = %s" (quoteWhiteSpace c) p.ParameterName ) )))
         | DoNothing ->
           ~~(sprintf " ON CONFLICT DO NOTHING ")
 
         match haspk, pk with
-        | true, [itm] -> ~~(sprintf " RETURNING \"%s\";" itm)
+        | true, [itm] -> ~~(sprintf " RETURNING %s;" (quoteWhiteSpace itm))
         | _ -> ()
 
         values |> List.iter (cmd.Parameters.Add >> ignore)
@@ -560,10 +561,10 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         match pk with
         | [] -> ()
         | ks -> 
-            ~~(sprintf "UPDATE \"%s\".\"%s\" SET %s WHERE "
-                entity.Table.Schema entity.Table.Name
-                (String.Join(",", data |> Array.map(fun (c,p) -> sprintf "\"%s\" = %s" c p.ParameterName ) )))
-            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "\"%s\" = @pk%i" k i))) + ";")
+            ~~(sprintf "UPDATE %s SET %s WHERE "
+                entity.Table.FullName
+                (String.Join(",", data |> Array.map(fun (c,p) -> sprintf "%s = %s" (quoteWhiteSpace c) p.ParameterName ) )))
+            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "%s = @pk%i" (quoteWhiteSpace k) i))) + ";")
 
         data |> Array.map snd |> Array.iter (cmd.Parameters.Add >> ignore)
         pkValues |> List.iteri(fun i pkValue ->
@@ -592,8 +593,8 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         match pk with
         | [] -> ()
         | ks -> 
-            ~~(sprintf "DELETE FROM \"%s\".\"%s\" WHERE " entity.Table.Schema entity.Table.Name)
-            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "%s = @id%i" k i))))
+            ~~(sprintf "DELETE FROM %s WHERE " entity.Table.FullName)
+            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "%s = @id%i" (quoteWhiteSpace k) i))))
 
         cmd.CommandText <- sb.ToString()
         cmd
@@ -611,12 +612,20 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         member __.GetLockObject() = myLock
         member __.GetTableDescription(con,tableName) = 
             Sql.connect con (fun _ ->
+                // TODO: split schema and table name
+                let sn = tableName.Substring(0,tableName.LastIndexOf(".")) 
+                let tn = tableName.Substring(tableName.LastIndexOf(".")+1) 
                 use reader = 
-                    Sql.executeSql PostgreSQL.createCommand (
-                        sprintf """SELECT description
-                                    FROM   pg_description
-                                    WHERE  objoid = '%s'::regclass AND objsubid=0;
-                                """ tableName) con
+                    let baseQuery = """
+                       SELECT description
+                       FROM   pg_description
+                       WHERE  objoid = format('%I.%I', @schema, @table) ::regclass 
+                       AND objsubid=0;
+                    """
+                    use command = PostgreSQL.createCommand baseQuery con
+                    PostgreSQL.createCommandParameter (QueryParameter.Create("@schema", 0)) sn |> command.Parameters.Add |> ignore
+                    PostgreSQL.createCommandParameter (QueryParameter.Create("@table", 1)) tn |> command.Parameters.Add |> ignore
+                    command.ExecuteReader()                   
                 if reader.Read() then
                     let comment = Sql.dbUnbox<string> reader.["description"]
                     if comment <> null then comment else ""
@@ -627,16 +636,21 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                 let sn = tableName.Substring(0,tableName.LastIndexOf(".")) 
                 let tn = tableName.Substring(tableName.LastIndexOf(".")+1) 
                 use reader = 
-                    Sql.executeSql PostgreSQL.createCommand (
-                        sprintf """SELECT description
-                                    FROM pg_description d 
-                                    LEFT JOIN information_schema.columns c 
-                                    ON c.ordinal_position = d.objsubid
-                                    WHERE objoid = '%s'::regclass
-                                    AND c.table_schema = '%s'
-                                    AND c.table_name = '%s'
-                                    AND c.column_name = '%s';
-                                """ tableName sn tn columnName) con
+                    let baseQuery = """
+                       SELECT description
+                       FROM pg_description d 
+                       LEFT JOIN information_schema.columns c 
+                       ON c.ordinal_position = d.objsubid
+                       WHERE objoid = format('%I.%I', @schema, @table) ::regclass 
+                       AND c.table_schema = @schema
+                       AND c.table_name = @table
+                       AND c.column_name = @column;
+                    """
+                    use command = PostgreSQL.createCommand baseQuery con
+                    PostgreSQL.createCommandParameter (QueryParameter.Create("@schema", 0)) sn |> command.Parameters.Add |> ignore
+                    PostgreSQL.createCommandParameter (QueryParameter.Create("@table", 1)) tn |> command.Parameters.Add |> ignore
+                    PostgreSQL.createCommandParameter (QueryParameter.Create("@column", 2)) columnName |> command.Parameters.Add |> ignore
+                    command.ExecuteReader()
                 if reader.Read() then
                     let comment = Sql.dbUnbox<string> reader.["description"]
                     if comment <> null then comment else ""
@@ -651,7 +665,9 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         member __.GetSchemaCache() = schemaCache
 
         member __.GetTables(con,_) =
-            let schemas = PostgreSQL.schemas |> String.concat "', '" |> sprintf "ARRAY['%s']"
+            let schemas = PostgreSQL.schemas 
+                          |> Seq.map (fun s -> s.Replace("'", "''")) 
+                          |> String.concat "', '" |> sprintf "ARRAY['%s']"
 
             use reader = Sql.executeSql PostgreSQL.createCommand (sprintf "SELECT  table_schema,
                                                           table_name,
@@ -746,7 +762,8 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                                                                 
                                 match typeMapping with
                                 | None ->                                                     
-                                    failwithf "Could not get columns for `%s`, the type `%s` is unknown to Npgsql type mapping" table.FullName fullTypeName
+                                    failwithf "Could not get columns for `%s`, the type `%s` is unknown to Npgsql" table.FullName fullTypeName
+
                                 | Some m ->
                                     let isPk = Sql.dbUnbox<bool> reader.["is_primary_key"]
                                     let col =
@@ -870,10 +887,10 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                     let (~~) (t:string) = sb.Append t |> ignore
                     filterBuilder (~~) [c]
                     sb.ToString()
-                let colSprint =
+                let colSprint colName =
                     match String.IsNullOrEmpty(al) with
-                    | true -> sprintf "\"%s\""
-                    | false -> sprintf "\"%s\".\"%s\"" al
+                    | true -> quoteWhiteSpace colName
+                    | false -> sprintf "%s.%s" (quoteWhiteSpace al) (quoteWhiteSpace colName)
                 match c with
                 // Custom database spesific overrides for canonical functions:
                 | SqlColumnType.CanonicalOperation(cf,col) ->
@@ -1037,19 +1054,21 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                 String.Join(",",
                     [|for KeyValue(k,v) in projectionColumns do
                         let cols = (getTable k).FullName
-                        let k = if k <> "" then k elif baseAlias <> "" then baseAlias else baseTable.Name
+                        let k = if k <> "" then k elif baseAlias <> "" then baseAlias else baseTable.Name |> quoteWhiteSpace
                         if v.Count = 0 then   // if no columns exist in the projection then get everything
                             for col in schemaCache.Columns.[cols] |> Seq.map (fun c -> c.Key) do
-                                if singleEntity then yield sprintf "\"%s\".\"%s\" as \"%s\"" k col col
-                                else yield sprintf "\"%s\".\"%s\" as \"%s.%s\"" k col k col
+                                let qcol = quoteWhiteSpace col
+                                if singleEntity then yield sprintf "%s.%s as %s" k qcol qcol
+                                else yield sprintf "%s.%s as %s.%s" k qcol k qcol
                         else
                             for colp in v |> Seq.distinct do
                                 match colp with
                                 | EntityColumn col ->
-                                    if singleEntity then yield sprintf "\"%s\".\"%s\" as \"%s\"" k col col
-                                    else yield sprintf "\"%s\".\"%s\" as \"%s.%s\"" k col k col // F# makes this so easy :)
+                                    let qcol = quoteWhiteSpace col                                    
+                                    if singleEntity then yield sprintf "%s.%s as %s" k qcol qcol
+                                    else yield sprintf "%s.%s as %s.%s" k qcol k qcol // F# makes this so easy :)
                                 | OperationColumn(n,op) ->
-                                    yield sprintf "%s as \"%s\"" (fieldNotation k op) n|])
+                                    yield sprintf "%s as %s" (fieldNotation k op) (quoteWhiteSpace n)|])
 
             // Create sumBy, minBy, maxBy, ... field columns
             let columns =
@@ -1071,8 +1090,8 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                 |> List.iter(fun (fromAlias, data, destAlias)  ->
                     let joinType = if data.OuterJoin then "LEFT OUTER JOIN " else "INNER JOIN "
                     let destTable = getTable destAlias
-                    ~~  (sprintf "%s \"%s\".\"%s\" as \"%s\" on "
-                            joinType destTable.Schema destTable.Name destAlias)
+                    ~~  (sprintf "%s %s as %s on "
+                            joinType destTable.FullName (quoteWhiteSpace destAlias))
                     ~~  (String.Join(" AND ", (List.zip data.ForeignKey data.PrimaryKey) |> List.map(fun (foreignKey,primaryKey) ->
                         sprintf "%s = %s "
                             (fieldNotation (if data.RelDirection = RelationshipDirection.Parents then fromAlias else destAlias) foreignKey)
@@ -1092,7 +1111,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                     ~~ (sprintf "%s %s" (fieldNotation alias column) (if not desc then "DESC " else "")))
 
             if isDeleteScript then
-                ~~(sprintf "DELETE FROM \"%s\".\"%s\" " baseTable.Schema baseTable.Name)
+                ~~(sprintf "DELETE FROM %s " baseTable.FullName)
             else 
                 // SELECT
                 if sqlQuery.Distinct && sqlQuery.Count then ~~(sprintf "SELECT COUNT(DISTINCT %s) " (columns.Substring(0, columns.IndexOf(" as "))))
@@ -1101,9 +1120,9 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                 else  ~~(sprintf "SELECT %s " columns)
 
                 // FROM
-                let bal = if baseAlias = "" then baseTable.Name else baseAlias
-                ~~(sprintf "FROM \"%s\".\"%s\" as \"%s\" " baseTable.Schema baseTable.Name bal)
-                sqlQuery.CrossJoins |> Seq.iter(fun (a,t) -> ~~(sprintf ", \"%s\".\"%s\" as \"%s\" " t.Schema t.Name a))
+                let bal = if baseAlias = "" then baseTable.Name else baseAlias |> quoteWhiteSpace
+                ~~(sprintf "FROM %s as %s " baseTable.FullName bal)
+                sqlQuery.CrossJoins |> Seq.iter(fun (a,t) -> ~~(sprintf ", %s as %s " t.FullName (quoteWhiteSpace a)))
             fromBuilder()
             // WHERE
             if sqlQuery.Filters.Length > 0 then

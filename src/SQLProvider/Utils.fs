@@ -33,10 +33,9 @@ module internal Utilities =
             else Int32.MaxValue
         if(tupleIndex.Count < itemid) then ""
         else tupleIndex.[itemid - 1]
-
-
+        
     let quoteWhiteSpace (str:String) = 
-        (if str.Contains(" ") then sprintf "\"%s\"" str else str)
+        sprintf "\"%s\"" (str.Replace("\"", "\"\""))
 
     let uniqueName()= 
         let dict = new ConcurrentDictionary<string, int>()

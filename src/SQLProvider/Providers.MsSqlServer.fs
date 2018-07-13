@@ -9,6 +9,7 @@ open FSharp.Data.Sql
 open FSharp.Data.Sql.Transactions
 open FSharp.Data.Sql.Schema
 open FSharp.Data.Sql.Common
+open FSharp.Data.Sql.Common.Utilities
 
 module MSSqlServer =
     let getSchema name (args:string[]) (con:IDbConnection) =
@@ -21,14 +22,7 @@ module MSSqlServer =
     let mutable typeMappings = []
     let mutable findClrType : (string -> TypeMapping option)  = fun _ -> failwith "!"
     let mutable findDbType : (string -> TypeMapping option)  = fun _ -> failwith "!"
-
-    // Quick patch. Should be better solved by adding escaping functions to ISqlProvider, I think
-    type String with
-      member inline this.EscapeQuotes = this.Replace("'", "''")
-      member inline this.EscapeDoubleQuotes = this.Replace("\"", "\"\"")
-      // TODO: handle brackets as well
-      member inline this.EscapeBrackets = this.Replace("]", "]]")
-
+        
     let createTypeMappings (con:IDbConnection) =
         let dt = getSchema "DataTypes" [||] con
 
@@ -344,8 +338,8 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
     let fieldNotationAlias(al:alias,col:SqlColumnType) = 
         let aliasSprint (colName : string) =
             match String.IsNullOrEmpty(al) with
-            | true -> sprintf "'[%s]'" colName.EscapeQuotes
-            | false -> sprintf "'[%s].[%s]'" al.EscapeQuotes colName.EscapeQuotes
+            | true -> sprintf "'[%s]'" (quoteWhiteSpace colName)
+            | false -> sprintf "'[%s].[%s]'" (quoteWhiteSpace al) (quoteWhiteSpace colName)
         Utilities.genericAliasNotation aliasSprint col
 
     let createInsertCommand (con:IDbConnection) (sb:Text.StringBuilder) (entity:SqlEntity) =
@@ -656,7 +650,7 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
             res)
 
         member __.GetSprocs(con) = MSSqlServer.connect con MSSqlServer.getSprocs
-        member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT TOP %i * FROM %s" amount table.FullName.EscapeQuotes.EscapeDoubleQuotes
+        member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT TOP %i * FROM %s" amount table.FullName
         member __.GetIndividualQueryText(table,column) = sprintf "SELECT * FROM [%s].[%s] WHERE [%s].[%s].[%s] = @id" table.Schema table.Name table.Schema table.Name column
 
         member __.GenerateQueryText(sqlQuery,baseAlias,baseTable,projectionColumns,isDeleteScript, con) =
@@ -880,16 +874,16 @@ type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
                         let k = if k <> "" then k elif baseAlias <> "" then baseAlias else baseTable.Name
                         if v.Count = 0 then   // if no columns exist in the projection then get everything
                             for col in schemaCache.Columns.[cols] |> Seq.map (fun c -> c.Key) do
-                                if singleEntity then yield sprintf "[%s].[%s] as '%s'" k col col.EscapeQuotes
-                                else yield sprintf "[%s].[%s] as '[%s].[%s]'" k col k.EscapeQuotes col.EscapeQuotes
+                                if singleEntity then yield sprintf "[%s].[%s] as '%s'" k col (quoteWhiteSpace col)
+                                else yield sprintf "[%s].[%s] as '[%s].[%s]'" k col (quoteWhiteSpace k) (quoteWhiteSpace col)
                         else
                             for colp in v |> Seq.distinct do
                                 match colp with
                                 | EntityColumn col ->
-                                    if singleEntity then yield sprintf "[%s].[%s] as '%s'" k col col.EscapeQuotes
-                                    else yield sprintf "[%s].[%s] as '[%s].[%s]'" k col k.EscapeQuotes col.EscapeQuotes
+                                    if singleEntity then yield sprintf "[%s].[%s] as '%s'" k col (quoteWhiteSpace col)
+                                    else yield sprintf "[%s].[%s] as '[%s].[%s]'" k col (quoteWhiteSpace k) (quoteWhiteSpace col)
                                 | OperationColumn(n,op) ->
-                                    yield sprintf "%s as '%s'" (fieldNotation k op) n.EscapeQuotes |])
+                                    yield sprintf "%s as '%s'" (fieldNotation k op) (quoteWhiteSpace n) |])
                                     
             // Create sumBy, minBy, maxBy, ... field columns
             let columns =

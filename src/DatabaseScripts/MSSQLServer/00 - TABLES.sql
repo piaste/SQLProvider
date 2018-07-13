@@ -85,9 +85,9 @@ CREATE TABLE JOB_HISTORY
 	CONSTRAINT "JHIST_DEPT_FK" FOREIGN KEY (DEPARTMENT_ID) REFERENCES DEPARTMENTS (DEPARTMENT_ID)
 );
 
-CREATE TABLE [Odd table name ' '' \" \"\" ; ;;]
+CREATE TABLE [Odd table name ' '' " "" ; ;;]
 (
-    [odd column name ' '' \" \"\" ; ;;] INT PRIMARY KEY
+    [odd column name ' '' " "" ; ;;] INT PRIMARY KEY
     -- To implement later
     -- [column name with ' quotes, '' double quotes, ; semicolons and [ ]] brackets] INT 
 )
