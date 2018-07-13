@@ -106,8 +106,9 @@ queries referenced in the scope of the current solution or script. Therefore it 
 it after the successful build of the whole solution. Type the method name with parentheses, if you then 
 type a dot (.), you should see a tooltip with information when the schema was last saved. Once the schema 
 is saved, the outcome of the method execution is stored in memory, so the file will not be overwritten. 
-In case the database schema changes and the schema file must be updated, remove the outdated file, reload
-the solution and retype or uncomment a call to `SaveContextSchema` to regenerate the schema file.
+In case the database schema changes, or you need to access parts of the database you weren't previously
+using, type a call to `ClearContextSchema()` followed by a dot to delete the file and clear the in-memory
+schema cache.
 
 *)
 

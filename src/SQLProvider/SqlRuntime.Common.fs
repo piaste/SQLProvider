@@ -404,6 +404,7 @@ and ISqlDataContext =
     abstract ReadEntitiesAsync          : string * ColumnLookup * DbDataReader -> Async<SqlEntity[]>
     abstract SqlOperationsInSelect      : SelectOperations
     abstract SaveContextSchema          : string -> unit
+    abstract ClearContextSchema         : string -> unit
 
 // LinkData is for joins with SelectMany
 and LinkData =

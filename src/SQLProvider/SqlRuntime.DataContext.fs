@@ -249,3 +249,10 @@ type public SqlDataContext (typeName, connectionString:string, providerType, res
         member __.SaveContextSchema(filePath) =
             providerCache
             |> Seq.iter (fun prov -> prov.Value.GetSchemaCache().Save(filePath))
+
+        member __.ClearContextSchema(filePath) =
+            providerCache.Clear()            
+            if not (String.IsNullOrEmpty filePath) then IO.File.Delete filePath
+            
+              
+        

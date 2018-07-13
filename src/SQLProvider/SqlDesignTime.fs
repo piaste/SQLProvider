@@ -111,7 +111,13 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
         let getTableData name = tableColumns.Force().[name].Force()
         let serviceType = ProvidedTypeDefinition( "dataContext", None, isErased=true)
         let transactionOptions = TransactionOptions.Default
-        let designTimeDc = SqlDataContext(rootTypeName, conString, dbVendor, resolutionPath, config.ReferencedAssemblies, config.RuntimeAssembly, owner, caseSensitivity, tableNames, contextSchemaPath, odbcquote, sqliteLibrary, transactionOptions, None, SelectOperations.DotNetSide)
+        
+        let initDesignTimeDc () = 
+          SqlDataContext(rootTypeName, conString, dbVendor, resolutionPath, config.ReferencedAssemblies, config.RuntimeAssembly, owner, caseSensitivity, tableNames, contextSchemaPath, odbcquote, sqliteLibrary, transactionOptions, None, SelectOperations.DotNetSide)
+          :> ISqlDataContext
+
+        let mutable designTimeDc : ISqlDataContext = initDesignTimeDc()        
+
         // first create all the types so we are able to recursively reference them in each other's definitions
         let baseTypes =
             lazy
@@ -167,7 +173,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                             use com = prov.CreateCommand(con,prov.GetIndividualsQueryText(table,individualsAmount))
                             if con.State <> ConnectionState.Open then con.Open()
                             use reader = com.ExecuteReader()
-                            let ret = (designTimeDc :> ISqlDataContext).ReadEntities(table.FullName, columns, reader)
+                            let ret = designTimeDc.ReadEntities(table.FullName, columns, reader)
                             if (dbVendor <> DatabaseProviderTypes.MSACCESS) then con.Close()
                             ret
                         | None -> [||]
@@ -687,29 +693,56 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
               yield ProvidedMethod("GetUpdates",[],typeof<SqlEntity list>, invokeCode = fun args -> <@@ ((%%args.[0] : obj) :?> ISqlDataContext).GetPendingEntities() @@>)  :> MemberInfo
               yield ProvidedMethod("ClearUpdates",[],typeof<SqlEntity list>, invokeCode = fun args -> <@@ ((%%args.[0] : obj) :?> ISqlDataContext).ClearPendingChanges() @@>)  :> MemberInfo
               yield ProvidedMethod("CreateConnection",[],typeof<IDbConnection>, invokeCode = fun args -> <@@ ((%%args.[0] : obj) :?> ISqlDataContext).CreateConnection() @@>)  :> MemberInfo
+         
+               // Common code for designing helper methods that only run code at compile time
+              let designTimeOnlyMethod name code xmlCode =                               
+                
+                let response = ProvidedTypeDefinition(name + "Response", None, isErased=true)
+                response.AddMember(ProvidedConstructor([], empty))                
+                response.AddMemberDelayed(fun () -> 
+                    let result = code()
+                    ProvidedMethod(result, [], typeof<unit>, invokeCode = empty) :> MemberInfo
+                )
+                serviceType.AddMember response
+                
+                let method = ProvidedMethod(name, [], (response :> Type), invokeCode = empty)              
+                method.AddXmlDocComputed xmlCode
+                method :> MemberInfo
               
-              let saveResponse = ProvidedTypeDefinition("SaveContextResponse",None, isErased=true)
-              saveResponse.AddMember(ProvidedConstructor([], empty))
-              saveResponse.AddMemberDelayed(fun () -> 
-                  let result = 
-                      if not(String.IsNullOrEmpty contextSchemaPath) then
-                          try
-                              lock mySaveLock (fun() ->
-                                  prov.GetSchemaCache().Save contextSchemaPath
-                                  "Saved " + contextSchemaPath + " at " + DateTime.Now.ToString("hh:mm:ss")
-                              )
-                          with
-                          | e -> "Save failed: " + e.Message
-                      else "ContextSchemaPath is not defined"
-                  ProvidedMethod(result,[],typeof<unit>, invokeCode = empty) :> MemberInfo
-              )
-              let m = ProvidedMethod("SaveContextSchema", [], (saveResponse :> Type), invokeCode = empty)
-              m.AddXmlDocComputed(fun () -> 
+              // Saving context schema cache
+              yield designTimeOnlyMethod "SaveContextSchema" 
+                (fun () -> 
+                  if not(String.IsNullOrEmpty contextSchemaPath) then
+                      try
+                          lock mySaveLock (fun() ->
+                              prov.GetSchemaCache().Save contextSchemaPath
+                              "Saved " + contextSchemaPath + " at " + DateTime.Now.ToString("hh:mm:ss")
+                          )
+                      with
+                      | e -> "Save failed: " + e.Message
+                  else "ContextSchemaPath is not defined")
+                (fun () -> 
                   if String.IsNullOrEmpty contextSchemaPath then "ContextSchemaPath static parameter has to be defined to use this function."
                   else "Schema location: " + contextSchemaPath + ". Write dot after SaveContextSchema() to save the schema at design time."
-                  )
-              serviceType.AddMember saveResponse
-              yield m :> MemberInfo
+                )
+
+              // Clearing provider caches
+              yield designTimeOnlyMethod "ClearContextSchema" 
+                (fun () -> 
+                      try
+                          lock mySaveLock (fun() ->
+                              designTimeDc.ClearContextSchema(contextSchemaPath)
+                              designTimeDc <- initDesignTimeDc()
+                              this.Invalidate()
+                              "Provider cache cleared."
+                          )
+                      with
+                      | e -> "Clearing cache failed: " + e.Message; )
+                (fun () -> 
+                  ". Write dot after ClearContextSchema() to reset the in-memory schema cache"
+                   + if not (String.IsNullOrEmpty contextSchemaPath) then ", delete the saved schema at " + contextSchemaPath + ", " else ""
+                   + " and read the schema from the database again."
+                )
 
              ] @ [
                 for KeyValue(name,pt) in schemaMap do
