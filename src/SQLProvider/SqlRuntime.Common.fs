@@ -362,7 +362,7 @@ type SqlEntity(dc: ISqlDataContext, tableName, columns: ColumnLookup) =
     interface System.ComponentModel.ICustomTypeDescriptor with
         member e.GetComponentName() = TypeDescriptor.GetComponentName(e,true)
         member e.GetDefaultEvent() = TypeDescriptor.GetDefaultEvent(e,true)
-        member e.GetClassName() = e.Table.SqlFullName
+        member e.GetClassName() = e.Table.ClrFullName
         member e.GetEvents(_) = TypeDescriptor.GetEvents(e,true)
         member e.GetEvents() = TypeDescriptor.GetEvents(e,null,true)
         member e.GetConverter() = TypeDescriptor.GetConverter(e,true)

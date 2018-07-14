@@ -264,7 +264,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                 dict [ for table in tables.Force() do  
                         let name = table.SqlFullName
                         let (et,_,_,_) = baseTypes.Force().[name]
-                        let ct = ProvidedTypeDefinition(table.SqlFullName, None ,isErased=true)                        
+                        let ct = ProvidedTypeDefinition(table.ClrFullName, None ,isErased=true)                        
                         ct.AddInterfaceImplementationsDelayed( fun () -> [ProvidedTypeBuilder.MakeGenericType(typedefof<System.Linq.IQueryable<_>>,[et :> Type]); typeof<ISqlDataContext>])
                         let it = createIndividualsType table 
                         yield table.SqlFullName,(ct,it) ]
