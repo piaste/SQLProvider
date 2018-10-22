@@ -6,6 +6,7 @@ open System.Data.SqlClient
 open System.Text.RegularExpressions
 open FSharp.Data.Sql.Common.Utilities
 open System.Reflection
+open FSharp.Data.Sql.Common.SchemaProjections
 
 module internal Patterns =
     let (|Match|_|) (pat:string) (inp:string) =
@@ -113,13 +114,16 @@ type Table =
     with
         // Note here the [].[] format is ONLY used internally.  Do not use this in queries; Different vendors have
         // different ways to qualify whitespace.
-        member x.FullName =
-            if (String.IsNullOrWhiteSpace(x.Schema)) then (quoteWhiteSpace x.Name)
-            else x.Schema + "." + (quoteWhiteSpace x.Name)
+        member x.SqlFullName =
+            if not (String.IsNullOrWhiteSpace(x.Schema)) then (quote x.Schema + ".") else ""
+            + (quote x.Name)
+        member x.ClrFullName = 
+            if not (String.IsNullOrWhiteSpace(x.Schema)) then (nicePascalName x.Schema + ".") else ""
+            + (nicePascalName x.Name)
         static member FromFullName(fullName:string) =
             match fullName with
             | Patterns.Match @"(.*)\.(.*)" [schema;name] -> { Schema = schema; Name = name; Type="" }
             | _ -> { Schema = ""; Name = fullName; Type="" }
         static member CreateFullName(schema, name) =
-            if (String.IsNullOrWhiteSpace(schema)) then (quoteWhiteSpace name)
-            else schema + "." + (quoteWhiteSpace name)
+            if (String.IsNullOrWhiteSpace(schema)) then (quote name)
+            else schema + "." + (quote name)

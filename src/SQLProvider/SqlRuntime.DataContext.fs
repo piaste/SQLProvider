@@ -194,7 +194,7 @@ type public SqlDataContext (typeName, connectionString:string, providerType, res
                 | Some v -> columns.[v]
                 | None ->
                     // this fail case should not really be possible unless the runtime database is different to the design-time one
-                    failwithf "Primary key could not be found on object %s. Individuals only supported on objects with a single primary key." table.FullName
+                    failwithf "Primary key could not be found on object %s. Individuals only supported on objects with a single primary key." table.SqlFullName
             use com = provider.CreateCommand(con,provider.GetIndividualQueryText(table,pk.Name))
             if commandTimeout.IsSome then
                 com.CommandTimeout <- commandTimeout.Value
@@ -202,7 +202,7 @@ type public SqlDataContext (typeName, connectionString:string, providerType, res
             com.Parameters.Add (provider.CreateCommandParameter(QueryParameter.Create("@id", 0, pk.TypeMapping),id)) |> ignore
             if con.State <> ConnectionState.Open then con.Open()
             use reader = com.ExecuteReader()
-            let entity = (this :> ISqlDataContext).ReadEntities(table.FullName, columns, reader) |> Seq.exactlyOne
+            let entity = (this :> ISqlDataContext).ReadEntities(table.SqlFullName, columns, reader) |> Seq.exactlyOne
             if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close()
             entity
 

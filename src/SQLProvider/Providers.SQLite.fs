@@ -250,7 +250,7 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
         sb.Clear() |> ignore
         ~~(sprintf "INSERT %s INTO %s (%s) VALUES (%s); SELECT last_insert_rowid();"
             conflictClause
-            entity.Table.FullName
+            entity.Table.SqlFullName
             (String.Join(",",columnNames))
             (String.Join(",",values |> Array.map(fun p -> p.ParameterName))))
 
@@ -262,8 +262,8 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
         let (~~) (t:string) = sb.Append t |> ignore
         let cmd = (this :> ISqlProvider).CreateCommand(con,"")
         cmd.Connection <- con
-        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.FullName)
-        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.FullName] else []
+        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.SqlFullName)
+        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.SqlFullName] else []
         sb.Clear() |> ignore
 
         match pk with
@@ -273,7 +273,7 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
 
         let pkValues =
             match entity.GetPkColumnOption<obj> pk with
-            | [] -> failwith ("Error - you cannot update an entity that does not have a primary key. (" + entity.Table.FullName + ")")
+            | [] -> failwith ("Error - you cannot update an entity that does not have a primary key. (" + entity.Table.SqlFullName + ")")
             | v -> v
 
         let data =
@@ -293,7 +293,7 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
         | [] -> ()
         | ks -> 
             ~~(sprintf "UPDATE %s SET %s WHERE "
-                entity.Table.FullName
+                entity.Table.SqlFullName
                 (String.Join(",", data |> Array.map(fun (c,p) -> sprintf "[%s] = %s" c p.ParameterName ) )))
             ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "[%s] = @pk%i" k i))) + ";")
 
@@ -309,12 +309,12 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
         let cmd = (this :> ISqlProvider).CreateCommand(con,"")
         cmd.Connection <- con
         sb.Clear() |> ignore
-        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.FullName)
-        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.FullName] else []
+        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.SqlFullName)
+        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.SqlFullName] else []
         sb.Clear() |> ignore
         let pkValues =
             match entity.GetPkColumnOption<obj> pk with
-            | [] -> failwith ("Error - you cannot delete an entity that does not have a primary key. (" + entity.Table.FullName + ")")
+            | [] -> failwith ("Error - you cannot delete an entity that does not have a primary key. (" + entity.Table.SqlFullName + ")")
             | v -> v
         pkValues |> List.iteri(fun i pkValue ->
             let p = createParam ("@id"+i.ToString()) i pkValue
@@ -323,7 +323,7 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
         match pk with
         | [] -> ()
         | ks -> 
-            ~~(sprintf "DELETE FROM %s WHERE " entity.Table.FullName)
+            ~~(sprintf "DELETE FROM %s WHERE " entity.Table.SqlFullName)
             ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "[%s] = @id%i" k i))) + ";")
         cmd.CommandText <- sb.ToString()
         cmd
@@ -425,18 +425,18 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
                     let ty = string row.["TABLE_TYPE"]
                     if ty <> "SYSTEM_TABLE" then
                         let table = { Schema = string row.["TABLE_CATALOG"] ; Name = string row.["TABLE_NAME"]; Type=ty }
-                        yield schemaCache.Tables.GetOrAdd(table.FullName,table)
+                        yield schemaCache.Tables.GetOrAdd(table.SqlFullName,table)
                         ]
             con.Close()
             ret
 
         member __.GetPrimaryKey(table) =
-            match schemaCache.PrimaryKeys.TryGetValue table.FullName with
+            match schemaCache.PrimaryKeys.TryGetValue table.SqlFullName with
             | true, [v] -> Some v
             | _ -> None
 
         member __.GetColumns(con,table) =
-            match schemaCache.Columns.TryGetValue table.FullName with
+            match schemaCache.Columns.TryGetValue table.SqlFullName with
             | (true,data) when data.Count > 0 -> data
             | _ ->
                 if con.State <> ConnectionState.Open then con.Open()
@@ -460,7 +460,7 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
                                   HasDefault = not (reader.IsDBNull 4)
                                   TypeInfo = Some dtv }
                             if col.IsPrimaryKey then 
-                                schemaCache.PrimaryKeys.AddOrUpdate(table.FullName, [col.Name], fun key old -> 
+                                schemaCache.PrimaryKeys.AddOrUpdate(table.SqlFullName, [col.Name], fun key old -> 
                                     match col.Name with 
                                     | "" -> old 
                                     | x -> match old with
@@ -471,12 +471,12 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
                         | _ -> ()]
                     |> Map.ofList
                 con.Close()
-                schemaCache.Columns.AddOrUpdate(table.FullName, columns, fun x old -> match columns.Count with 0 -> old | x -> columns)
+                schemaCache.Columns.AddOrUpdate(table.SqlFullName, columns, fun x old -> match columns.Count with 0 -> old | x -> columns)
 
         member __.GetRelationships(con,table) =
           System.Threading.Monitor.Enter schemaCache.Relationships
           try
-            match schemaCache.Relationships.TryGetValue(table.FullName) with
+            match schemaCache.Relationships.TryGetValue(table.SqlFullName) with
             | true,v -> v
             | _ ->
                 // SQLite doesn't have great metadata capabilities.
@@ -498,18 +498,18 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
                           Name = string row.["TABLE_NAME"]
                           Type = ""}
 
-                    if not <| schemaCache.Relationships.ContainsKey pTable.FullName then schemaCache.Relationships.[pTable.FullName] <- ([],[])
-                    if not <| schemaCache.Relationships.ContainsKey fTable.FullName then schemaCache.Relationships.[fTable.FullName] <- ([],[])
+                    if not <| schemaCache.Relationships.ContainsKey pTable.SqlFullName then schemaCache.Relationships.[pTable.SqlFullName] <- ([],[])
+                    if not <| schemaCache.Relationships.ContainsKey fTable.SqlFullName then schemaCache.Relationships.[fTable.SqlFullName] <- ([],[])
 
-                    let rel = { Name = string row.["CONSTRAINT_NAME"]; PrimaryTable= pTable.FullName; PrimaryKey=string row.["FKEY_TO_COLUMN"]
-                                ForeignTable=fTable.FullName; ForeignKey=string row.["FKEY_FROM_COLUMN"] }
+                    let rel = { Name = string row.["CONSTRAINT_NAME"]; PrimaryTable= pTable.SqlFullName; PrimaryKey=string row.["FKEY_TO_COLUMN"]
+                                ForeignTable=fTable.SqlFullName; ForeignKey=string row.["FKEY_FROM_COLUMN"] }
 
-                    let (c,p) = schemaCache.Relationships.[pTable.FullName]
-                    schemaCache.Relationships.[pTable.FullName] <- (rel::c,p)
-                    let (c,p) = schemaCache.Relationships.[fTable.FullName]
-                    schemaCache.Relationships.[fTable.FullName] <- (c,rel::p)
+                    let (c,p) = schemaCache.Relationships.[pTable.SqlFullName]
+                    schemaCache.Relationships.[pTable.SqlFullName] <- (rel::c,p)
+                    let (c,p) = schemaCache.Relationships.[fTable.SqlFullName]
+                    schemaCache.Relationships.[fTable.SqlFullName] <- (c,rel::p)
                 con.Close()
-                match schemaCache.Relationships.TryGetValue table.FullName with
+                match schemaCache.Relationships.TryGetValue table.SqlFullName with
                 | true,v -> v
                 | _ -> [],[]
           finally
@@ -530,7 +530,7 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
                                         ReturnColumns = (fun _ name -> [QueryParameter.Create("ResultSet",0,outParamType,ParameterDirection.Output)])
                 }))
              ]
-        member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT * FROM %s LIMIT %i;" table.FullName amount
+        member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT * FROM %s LIMIT %i;" table.SqlFullName amount
         member __.GetIndividualQueryText(table,column) = sprintf "SELECT * FROM [%s].[%s] WHERE [%s].[%s].[%s] = @id" table.Schema table.Name table.Schema table.Name column
         member __.GetSchemaCache() = schemaCache
 
@@ -717,7 +717,7 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
                 if projectionColumns |> Seq.isEmpty then "1" else
                 String.Join(",",
                     [|for KeyValue(k,v) in projectionColumns do
-                        let cols = (getTable k).FullName
+                        let cols = (getTable k).SqlFullName
                         let k = if k <> "" then k elif baseAlias <> "" then baseAlias else baseTable.Name
                         if v.Count = 0 then   // if no columns exist in the projection then get everything
                             for col in schemaCache.Columns.[cols] |> Seq.map (fun c -> c.Key) do
@@ -773,7 +773,7 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
                     ~~ (sprintf "%s %s" (fieldNotation alias column) (if not desc then "DESC " else "")))
 
             if isDeleteScript then
-                ~~(sprintf "DELETE FROM %s " baseTable.FullName)
+                ~~(sprintf "DELETE FROM %s " baseTable.SqlFullName)
             else 
                 // SELECT
                 if sqlQuery.Distinct && sqlQuery.Count then ~~(sprintf "SELECT COUNT(DISTINCT %s) " (columns.Substring(0, columns.IndexOf(" as "))))
@@ -782,8 +782,8 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
                 else  ~~(sprintf "SELECT %s " columns)
                 // FROM
                 let bal = if baseAlias = "" then baseTable.Name else baseAlias
-                ~~(sprintf "FROM %s as [%s] " baseTable.FullName bal)
-                sqlQuery.CrossJoins |> Seq.iter(fun (a,t) -> ~~(sprintf ", %s as [%s] " t.FullName a))
+                ~~(sprintf "FROM %s as [%s] " baseTable.SqlFullName bal)
+                sqlQuery.CrossJoins |> Seq.iter(fun (a,t) -> ~~(sprintf ", %s as [%s] " t.SqlFullName a))
             fromBuilder()
             // WHERE
             if sqlQuery.Filters.Length > 0 then
@@ -877,7 +877,7 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
                             cmd.CommandTimeout <- timeout.Value
                         cmd.ExecuteNonQuery() |> ignore
                         // remove the pk to prevent this attempting to be used again
-                        e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.FullName], None)
+                        e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.SqlFullName], None)
                         e._State <- Deleted
                     | Deleted | Unchanged -> failwith "Unchanged entity encountered in update list - this should not be possible!")
                 if scope<>null then scope.Complete()
@@ -930,7 +930,7 @@ type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemb
                                     cmd.CommandTimeout <- timeout.Value
                                 do! cmd.ExecuteNonQueryAsync() |> Async.AwaitTask |> Async.Ignore
                                 // remove the pk to prevent this attempting to be used again
-                                e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.FullName], None)
+                                e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.SqlFullName], None)
                                 e._State <- Deleted
                             }
                         | Deleted | Unchanged -> failwith "Unchanged entity encountered in update list - this should not be possible!"

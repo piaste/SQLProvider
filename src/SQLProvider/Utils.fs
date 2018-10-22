@@ -34,9 +34,10 @@ module internal Utilities =
         if(tupleIndex.Count < itemid) then ""
         else tupleIndex.[itemid - 1]
         
-    let quoteWhiteSpace (str:String) = 
+    /// Quoting object names in a format suitable for SQL queries
+    let quote (str:String) = 
         sprintf "\"%s\"" (str.Replace("\"", "\"\""))
-
+            
     let uniqueName()= 
         let dict = new ConcurrentDictionary<string, int>()
         (fun name -> 

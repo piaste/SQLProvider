@@ -482,8 +482,8 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         let (~~) (t:string) = sb.Append t |> ignore
         let cmd = PostgreSQL.createCommand "" con
         cmd.Connection <- con
-        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.FullName)
-        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.FullName] else []
+        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.SqlFullName)
+        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.SqlFullName] else []
 
         let columnNamesWithValues = 
             (([],0), entity.ColumnValuesWithDefinition)
@@ -500,12 +500,12 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         let columnNames, values = List.unzip columnNamesWithValues
 
         sb.Clear() |> ignore
-        ~~(sprintf "INSERT INTO %s " entity.Table.FullName)
+        ~~(sprintf "INSERT INTO %s " entity.Table.SqlFullName)
 
         match columnNames with
         | [] -> ~~(sprintf "DEFAULT VALUES")
         | _ -> ~~(sprintf "(%s) VALUES (%s)"
-                    (String.Join(",", columnNames |> List.map quoteWhiteSpace))
+                    (String.Join(",", columnNames |> List.map quote))
                     (String.Join(",", values |> List.map(fun p -> p.ParameterName))))
 
         match entity.OnConflict with
@@ -513,12 +513,12 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         | Update ->
           ~~(sprintf " ON CONFLICT (%s) DO UPDATE SET %s "                
                 (String.Join(",", pk |> List.map (sprintf "\"%s\"")))
-                (String.Join(",", columnNamesWithValues |> List.map(fun (c,p) -> sprintf "%s = %s" (quoteWhiteSpace c) p.ParameterName ) )))
+                (String.Join(",", columnNamesWithValues |> List.map(fun (c,p) -> sprintf "%s = %s" (quote c) p.ParameterName ) )))
         | DoNothing ->
           ~~(sprintf " ON CONFLICT DO NOTHING ")
 
         match haspk, pk with
-        | true, [itm] -> ~~(sprintf " RETURNING %s;" (quoteWhiteSpace itm))
+        | true, [itm] -> ~~(sprintf " RETURNING %s;" (quote itm))
         | _ -> ()
 
         values |> List.iter (cmd.Parameters.Add >> ignore)
@@ -529,8 +529,8 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         let (~~) (t:string) = sb.Append t |> ignore
         let cmd = PostgreSQL.createCommand "" con
         cmd.Connection <- con
-        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.FullName)
-        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.FullName] else []
+        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.SqlFullName)
+        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.SqlFullName] else []
         sb.Clear() |> ignore
 
         match pk with
@@ -540,7 +540,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
 
         let pkValues =
             match entity.GetPkColumnOption<obj> pk with
-            | [] -> failwith ("Error - you cannot update an entity that does not have a primary key. (" + entity.Table.FullName + ")")
+            | [] -> failwith ("Error - you cannot update an entity that does not have a primary key. (" + entity.Table.SqlFullName + ")")
             | v -> v
 
         let data =
@@ -562,9 +562,9 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         | [] -> ()
         | ks -> 
             ~~(sprintf "UPDATE %s SET %s WHERE "
-                entity.Table.FullName
-                (String.Join(",", data |> Array.map(fun (c,p) -> sprintf "%s = %s" (quoteWhiteSpace c) p.ParameterName ) )))
-            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "%s = @pk%i" (quoteWhiteSpace k) i))) + ";")
+                entity.Table.SqlFullName
+                (String.Join(",", data |> Array.map(fun (c,p) -> sprintf "%s = %s" (quote c) p.ParameterName ) )))
+            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "%s = @pk%i" (quote k) i))) + ";")
 
         data |> Array.map snd |> Array.iter (cmd.Parameters.Add >> ignore)
         pkValues |> List.iteri(fun i pkValue ->
@@ -578,12 +578,12 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         let cmd = PostgreSQL.createCommand "" con
         cmd.Connection <- con
         sb.Clear() |> ignore
-        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.FullName)
-        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.FullName] else []
+        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.SqlFullName)
+        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.SqlFullName] else []
         sb.Clear() |> ignore
         let pkValues =
             match entity.GetPkColumnOption<obj> pk with
-            | [] -> failwith ("Error - you cannot delete an entity that does not have a primary key. (" + entity.Table.FullName + ")")
+            | [] -> failwith ("Error - you cannot delete an entity that does not have a primary key. (" + entity.Table.SqlFullName + ")")
             | v -> v
 
         pkValues |> List.iteri(fun i pkValue ->
@@ -593,8 +593,8 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         match pk with
         | [] -> ()
         | ks -> 
-            ~~(sprintf "DELETE FROM %s WHERE " entity.Table.FullName)
-            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "%s = @id%i" (quoteWhiteSpace k) i))))
+            ~~(sprintf "DELETE FROM %s WHERE " entity.Table.SqlFullName)
+            ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "%s = @id%i" (quote k) i))))
 
         cmd.CommandText <- sb.ToString()
         cmd
@@ -679,11 +679,11 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                               Name = Sql.dbUnbox<string> reader.["table_name"]
                               Type = (Sql.dbUnbox<string> reader.["table_type"]).ToLower() }
                 
-                yield schemaCache.Tables.GetOrAdd(table.FullName, table)
+                yield schemaCache.Tables.GetOrAdd(table.SqlFullName, table)
                 ]
 
         member __.GetPrimaryKey(table) =
-            match schemaCache.PrimaryKeys.TryGetValue table.FullName with
+            match schemaCache.PrimaryKeys.TryGetValue table.SqlFullName with
             | true, [v] -> Some v
             | _ -> None
 
@@ -691,7 +691,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
             Monitor.Enter schemaCache.Columns
 
             try
-                match schemaCache.Columns.TryGetValue table.FullName with
+                match schemaCache.Columns.TryGetValue table.SqlFullName with
                 | (true,data) when data.Count > 0 -> data
                 | _ ->
                     let baseQuery = @"
@@ -762,7 +762,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                                                                 
                                 match typeMapping with
                                 | None ->                                                     
-                                    failwithf "Could not get columns for `%s`, the type `%s` is unknown to Npgsql" table.FullName fullTypeName
+                                    failwithf "Could not get columns for `%s`, the type `%s` is unknown to Npgsql" table.SqlFullName fullTypeName
 
                                 | Some m ->
                                     let isPk = Sql.dbUnbox<bool> reader.["is_primary_key"]
@@ -777,7 +777,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                                         }
 
                                     if col.IsPrimaryKey then
-                                        schemaCache.PrimaryKeys.AddOrUpdate(table.FullName, [col.Name], fun _ old -> 
+                                        schemaCache.PrimaryKeys.AddOrUpdate(table.SqlFullName, [col.Name], fun _ old -> 
                                             match col.Name with 
                                             | "" -> old 
                                             | x -> match old with
@@ -788,14 +788,14 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                                     yield col.Name, col
                             ]
                             |> Map.ofList
-                        schemaCache.Columns.AddOrUpdate(table.FullName, columns, fun x old -> match columns.Count with 0 -> old | x -> columns))
+                        schemaCache.Columns.AddOrUpdate(table.SqlFullName, columns, fun x old -> match columns.Count with 0 -> old | x -> columns))
             finally
                 Monitor.Exit schemaCache.Columns
 
         member __.GetRelationships(con,table) =
             Monitor.Enter schemaCache.Relationships
             try
-                match schemaCache.Relationships.TryGetValue(table.FullName) with
+                match schemaCache.Relationships.TryGetValue(table.SqlFullName) with
                 | true,v -> v
                 | _ ->
                     let baseQuery = @"SELECT
@@ -851,7 +851,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                                     ForeignTable = Table.CreateFullName(reader.GetString(8), reader.GetString(1));
                                     ForeignKey = reader.GetString(2)
                                   } ]
-                    schemaCache.Relationships.[table.FullName] <- (children,parents)
+                    schemaCache.Relationships.[table.SqlFullName] <- (children,parents)
                     con.Close()
                     (children,parents)
                 finally
@@ -889,8 +889,8 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                     sb.ToString()
                 let colSprint colName =
                     match String.IsNullOrEmpty(al) with
-                    | true -> quoteWhiteSpace colName
-                    | false -> sprintf "%s.%s" (quoteWhiteSpace al) (quoteWhiteSpace colName)
+                    | true -> quote colName
+                    | false -> sprintf "%s.%s" (quote al) (quote colName)
                 match c with
                 // Custom database spesific overrides for canonical functions:
                 | SqlColumnType.CanonicalOperation(cf,col) ->
@@ -1053,22 +1053,22 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                 if projectionColumns |> Seq.isEmpty then "1" else
                 String.Join(",",
                     [|for KeyValue(k,v) in projectionColumns do
-                        let cols = (getTable k).FullName
-                        let k = if k <> "" then k elif baseAlias <> "" then baseAlias else baseTable.Name |> quoteWhiteSpace
+                        let cols = (getTable k).SqlFullName
+                        let k = if k <> "" then k elif baseAlias <> "" then baseAlias else baseTable.Name |> quote
                         if v.Count = 0 then   // if no columns exist in the projection then get everything
                             for col in schemaCache.Columns.[cols] |> Seq.map (fun c -> c.Key) do
-                                let qcol = quoteWhiteSpace col
+                                let qcol = quote col
                                 if singleEntity then yield sprintf "%s.%s as %s" k qcol qcol
                                 else yield sprintf "%s.%s as %s.%s" k qcol k qcol
                         else
                             for colp in v |> Seq.distinct do
                                 match colp with
                                 | EntityColumn col ->
-                                    let qcol = quoteWhiteSpace col                                    
+                                    let qcol = quote col                                    
                                     if singleEntity then yield sprintf "%s.%s as %s" k qcol qcol
                                     else yield sprintf "%s.%s as %s.%s" k qcol k qcol // F# makes this so easy :)
                                 | OperationColumn(n,op) ->
-                                    yield sprintf "%s as %s" (fieldNotation k op) (quoteWhiteSpace n)|])
+                                    yield sprintf "%s as %s" (fieldNotation k op) (quote n)|])
 
             // Create sumBy, minBy, maxBy, ... field columns
             let columns =
@@ -1091,7 +1091,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                     let joinType = if data.OuterJoin then "LEFT OUTER JOIN " else "INNER JOIN "
                     let destTable = getTable destAlias
                     ~~  (sprintf "%s %s as %s on "
-                            joinType destTable.FullName (quoteWhiteSpace destAlias))
+                            joinType destTable.SqlFullName (quote destAlias))
                     ~~  (String.Join(" AND ", (List.zip data.ForeignKey data.PrimaryKey) |> List.map(fun (foreignKey,primaryKey) ->
                         sprintf "%s = %s "
                             (fieldNotation (if data.RelDirection = RelationshipDirection.Parents then fromAlias else destAlias) foreignKey)
@@ -1111,7 +1111,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                     ~~ (sprintf "%s %s" (fieldNotation alias column) (if not desc then "DESC " else "")))
 
             if isDeleteScript then
-                ~~(sprintf "DELETE FROM %s " baseTable.FullName)
+                ~~(sprintf "DELETE FROM %s " baseTable.SqlFullName)
             else 
                 // SELECT
                 if sqlQuery.Distinct && sqlQuery.Count then ~~(sprintf "SELECT COUNT(DISTINCT %s) " (columns.Substring(0, columns.IndexOf(" as "))))
@@ -1120,9 +1120,9 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                 else  ~~(sprintf "SELECT %s " columns)
 
                 // FROM
-                let bal = if baseAlias = "" then baseTable.Name else baseAlias |> quoteWhiteSpace
-                ~~(sprintf "FROM %s as %s " baseTable.FullName bal)
-                sqlQuery.CrossJoins |> Seq.iter(fun (a,t) -> ~~(sprintf ", %s as %s " t.FullName (quoteWhiteSpace a)))
+                let bal = if baseAlias = "" then baseTable.Name else baseAlias |> quote
+                ~~(sprintf "FROM %s as %s " baseTable.SqlFullName bal)
+                sqlQuery.CrossJoins |> Seq.iter(fun (a,t) -> ~~(sprintf ", %s as %s " t.SqlFullName (quote a)))
             fromBuilder()
             // WHERE
             if sqlQuery.Filters.Length > 0 then
@@ -1216,7 +1216,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                             cmd.CommandTimeout <- timeout.Value
                         cmd.ExecuteNonQuery() |> ignore
                         // remove the pk to prevent this attempting to be used again
-                        e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.FullName], None)
+                        e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.SqlFullName], None)
                         e._State <- Deleted
                     | Deleted | Unchanged -> failwith "Unchanged entity encountered in update list - this should not be possible!")
                 if scope<>null then scope.Complete()
@@ -1271,7 +1271,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                                     cmd.CommandTimeout <- timeout.Value
                                 do! cmd.ExecuteNonQueryAsync() |> Async.AwaitTask |> Async.Ignore
                                 // remove the pk to prevent this attempting to be used again
-                                e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.FullName], None)
+                                e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.SqlFullName], None)
                                 e._State <- Deleted
                             }
                         | Deleted | Unchanged -> failwith "Unchanged entity encountered in update list - this should not be possible!"

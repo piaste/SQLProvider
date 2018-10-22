@@ -51,7 +51,7 @@ module internal QueryExpressionTransformer =
             | PropertyGet(Some(ParamWithName "tupledArg"), info) when info.PropertyType = typeof<SqlEntity> ->
                 let alias = Utilities.resolveTuplePropertyName (e :?> MemberExpression).Member.Name tupleIndex
                 if aliasEntityDict.ContainsKey(alias) then
-                    Some (alias,aliasEntityDict.[alias].FullName, None)
+                    Some (alias,aliasEntityDict.[alias].SqlFullName, None)
                 elif ultimateChild.IsSome then
                     Some (alias, fst(ultimateChild.Value), None)
                 else None
@@ -60,7 +60,7 @@ module internal QueryExpressionTransformer =
                          [String key]) when info.PropertyType = typeof<SqlEntity> ->
                 let alias = Utilities.resolveTuplePropertyName (getter :?> MemberExpression).Member.Name tupleIndex
                 if aliasEntityDict.ContainsKey(alias) then
-                    Some (alias,aliasEntityDict.[alias].FullName, Some(key,mi))
+                    Some (alias,aliasEntityDict.[alias].SqlFullName, Some(key,mi))
                 elif ultimateChild.IsSome then
                     Some (alias,fst(ultimateChild.Value), Some(key,mi))
                 else None
@@ -69,9 +69,9 @@ module internal QueryExpressionTransformer =
                 if param.Type = typeof<SqlEntity> then
                     let alias = Utilities.resolveTuplePropertyName (param.Name) tupleIndex
                     if aliasEntityDict.ContainsKey(alias) then
-                        Some (alias,aliasEntityDict.[alias].FullName, None)
+                        Some (alias,aliasEntityDict.[alias].SqlFullName, None)
                     elif ultimateChild.IsSome then
-                        Some (alias,snd(ultimateChild.Value).FullName, None)
+                        Some (alias,snd(ultimateChild.Value).SqlFullName, None)
                     else None
                 else None
             | PropertyGet(Some(PropertyGet(Some(ParamWithName "tupledArg"), nestedTuple)), info) 

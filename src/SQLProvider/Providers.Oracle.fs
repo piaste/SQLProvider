@@ -319,11 +319,11 @@ module internal Oracle =
         (children, rels)
 
     let getIndivdualsQueryText amount (table:Table) =
-        sprintf "select * from ( select * from %s order by 1 desc) where ROWNUM <= %i" table.FullName amount
+        sprintf "select * from ( select * from %s order by 1 desc) where ROWNUM <= %i" table.SqlFullName amount
 
     let getIndivdualQueryText (table:Table) column =
-        let tName = table.FullName
-        sprintf "SELECT * FROM %s WHERE %s.%s = :id" tName tName (quoteWhiteSpace column)
+        let tName = table.SqlFullName
+        sprintf "SELECT * FROM %s WHERE %s.%s = :id" tName tName (quote column)
 
     let getSprocReturnColumns (sparams: QueryParameter list) =
         sparams
@@ -544,7 +544,7 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
 
         sb.Clear() |> ignore
         ~~(sprintf "INSERT INTO %s (%s) VALUES (%s)"
-            (entity.Table.FullName)
+            (entity.Table.SqlFullName)
             (String.Join(",",columnNames))
             (String.Join(",",values |> Array.map(fun p -> p.ParameterName))))
         let cmd = provider.CreateCommand(con, sb.ToString())
@@ -561,7 +561,7 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
         let pk = schemaCache.PrimaryKeys.[entity.Table.Name]
         let pkValues =
             match entity.GetPkColumnOption<obj> pk with
-            | [] -> failwith ("Error - you cannot update an entity that does not have a primary key. (" + entity.Table.FullName + ")")
+            | [] -> failwith ("Error - you cannot update an entity that does not have a primary key. (" + entity.Table.SqlFullName + ")")
             | v -> v
 
         let columns, parameters =
@@ -582,7 +582,7 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
         | [] -> ()
         | ks -> 
             ~~(sprintf "UPDATE %s SET (%s) = (SELECT %s FROM DUAL) WHERE "
-                (entity.Table.FullName)
+                (entity.Table.SqlFullName)
                 (String.Join(",", columns))
                 (String.Join(",", parameters |> Array.map (fun p -> p.ParameterName))))
             ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "\"%s\" = :pk%i" k i))))
@@ -601,13 +601,13 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
         sb.Clear() |> ignore
         let pkValues =
             match entity.GetPkColumnOption<obj> pk with
-            | [] -> failwith ("Error - you cannot delete an entity that does not have a primary key. (" + entity.Table.FullName + ")")
+            | [] -> failwith ("Error - you cannot delete an entity that does not have a primary key. (" + entity.Table.SqlFullName + ")")
             | v -> v
 
         match pk with
         | [] -> ()
         | ks -> 
-            ~~(sprintf "DELETE FROM %s WHERE " entity.Table.FullName)
+            ~~(sprintf "DELETE FROM %s WHERE " entity.Table.SqlFullName)
             ~~(String.Join(" AND ", ks |> List.mapi(fun i k -> (sprintf "\"%s\" = :pk%i" k i))))
 
         let cmd = provider.CreateCommand(con, sb.ToString())
@@ -677,7 +677,7 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
         member __.GetTables(con,_) =
                if schemaCache.Tables.IsEmpty then
                     Sql.connect con (Oracle.getTables tableNames)
-                    |> List.map (fun t -> schemaCache.Tables.GetOrAdd(t.FullName, t))
+                    |> List.map (fun t -> schemaCache.Tables.GetOrAdd(t.SqlFullName, t))
                else schemaCache.Tables |> Seq.map (fun t -> t.Value) |> Seq.toList
 
         member __.GetPrimaryKey(table) =
@@ -686,14 +686,14 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
             | _ -> None
 
         member __.GetColumns(con,table) =
-            match schemaCache.Columns.TryGetValue table.FullName  with
+            match schemaCache.Columns.TryGetValue table.SqlFullName  with
             | true, cols when cols.Count > 0 -> cols
             | _ ->
                 let cols = Sql.connect con (Oracle.getColumns schemaCache.PrimaryKeys table)
-                schemaCache.Columns.GetOrAdd(table.FullName, cols)
+                schemaCache.Columns.GetOrAdd(table.SqlFullName, cols)
 
         member __.GetRelationships(con,table) =
-            schemaCache.Relationships.GetOrAdd(table.FullName, fun name ->
+            schemaCache.Relationships.GetOrAdd(table.SqlFullName, fun name ->
                     let rels = Sql.connect con (Oracle.getRelationships schemaCache.PrimaryKeys table.Name)
                     rels)
 
@@ -727,8 +727,8 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
                     sb.ToString()
                 let colSprint =
                     match String.IsNullOrEmpty(al) with
-                    | true -> fun col -> quoteWhiteSpace col
-                    | false -> fun col -> sprintf "%s.%s" al (quoteWhiteSpace col)
+                    | true -> fun col -> quote col
+                    | false -> fun col -> sprintf "%s.%s" al (quote col)
                 match c with
                 // Custom database spesific overrides for canonical function:
                 | SqlColumnType.CanonicalOperation(cf,col) ->
@@ -892,7 +892,7 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
                 if projectionColumns |> Seq.isEmpty then "1" else
                 String.Join(",",
                     [|for KeyValue(k,v) in projectionColumns do
-                        let cols = (getTable k).FullName
+                        let cols = (getTable k).SqlFullName
                         let k = if k <> "" then k elif baseAlias <> "" then baseAlias else baseTable.Name
                         if v.Count = 0 then   // if no columns exist in the projection then get everything
                             for col in schemaCache.Columns.[cols] |> Seq.map (fun c -> c.Key) do
@@ -902,8 +902,8 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
                             for colp in v |> Seq.distinct do
                                 match colp with
                                 | EntityColumn col ->
-                                    if singleEntity then yield sprintf "%s.%s as \"%s\"" k (quoteWhiteSpace col) col
-                                    else yield sprintf "%s.%s as \"%s.%s\"" k (quoteWhiteSpace col) k col // F# makes this so easy :)
+                                    if singleEntity then yield sprintf "%s.%s as \"%s\"" k (quote col) col
+                                    else yield sprintf "%s.%s as \"%s.%s\"" k (quote col) k col // F# makes this so easy :)
                                 | OperationColumn(n,op) ->
                                     yield sprintf "%s as \"%s\"" (fieldNotation k op) n|])
 
@@ -928,7 +928,7 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
                     let joinType = if data.OuterJoin then "LEFT OUTER JOIN " else "INNER JOIN "
                     let destTable = getTable destAlias
                     ~~  (sprintf "%s %s %s on "
-                            joinType destTable.FullName destAlias)
+                            joinType destTable.SqlFullName destAlias)
                     ~~  (String.Join(" AND ", (List.zip data.ForeignKey data.PrimaryKey) |> List.map(fun (foreignKey,primaryKey) ->
                         sprintf "%s = %s "
                             (fieldNotation (if data.RelDirection = RelationshipDirection.Parents then fromAlias else destAlias) foreignKey)
@@ -948,7 +948,7 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
                     ~~ (sprintf "%s %s" (fieldNotation alias column) (if not desc then " DESC NULLS LAST" else " ASC NULLS FIRST")))
 
             if isDeleteScript then
-                ~~(sprintf "DELETE FROM %s " baseTable.FullName)
+                ~~(sprintf "DELETE FROM %s " baseTable.SqlFullName)
             else 
                 // SELECT
                 if sqlQuery.Distinct && sqlQuery.Count then ~~(sprintf "SELECT COUNT(DISTINCT %s) " (columns.Substring(0, columns.IndexOf(" as "))))
@@ -957,8 +957,8 @@ type internal OracleProvider(resolutionPath, contextSchemaPath, owner, reference
                 else  ~~(sprintf "SELECT %s " columns)
                 // FROM
                 let bal = if baseAlias = "" then baseTable.Name else baseAlias
-                ~~(sprintf "FROM %s %s " baseTable.FullName bal)
-                sqlQuery.CrossJoins |> Seq.iter(fun (a,t) -> ~~(sprintf ", %s %s " t.FullName a))
+                ~~(sprintf "FROM %s %s " baseTable.SqlFullName bal)
+                sqlQuery.CrossJoins |> Seq.iter(fun (a,t) -> ~~(sprintf ", %s %s " t.SqlFullName a))
             fromBuilder()
             // WHERE
             if sqlQuery.Filters.Length > 0 then

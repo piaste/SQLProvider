@@ -116,7 +116,7 @@ module internal QueryImplementation =
         let columns = provider.GetColumns(con, baseTable)
         if con.State <> ConnectionState.Open then con.Open()
         use reader = cmd.ExecuteReader()
-        let results = dc.ReadEntities(baseTable.FullName, columns, reader)
+        let results = dc.ReadEntities(baseTable.SqlFullName, columns, reader)
         let results = parseQueryResults projector results
         if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close() //else get 'COM object that has been separated from its underlying RCW cannot be used.'
         results
@@ -138,7 +138,7 @@ module internal QueryImplementation =
                 if (con.State <> ConnectionState.Closed) && (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close()
                 con.Open()
            use! reader = cmd.ExecuteReaderAsync() |> Async.AwaitTask
-           let! results = dc.ReadEntitiesAsync(baseTable.FullName, columns, reader)
+           let! results = dc.ReadEntitiesAsync(baseTable.SqlFullName, columns, reader)
            let results = parseQueryResults projector results
            if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close() //else get 'COM object that has been separated from its underlying RCW cannot be used.'
            return results
@@ -186,7 +186,7 @@ module internal QueryImplementation =
             // No "AS" command allowed for basetable. Little visitor-pattern to modify base-alias name.
            let rec modifyAlias (sqlx:SqlExp) =
                match sqlx with
-               | BaseTable (alias,table) when (alias = "" || alias = table.Name || alias = table.FullName ) -> sqlx //ok
+               | BaseTable (alias,table) when (alias = "" || alias = table.Name || alias = table.SqlFullName ) -> sqlx //ok
                | BaseTable (_,table) -> BaseTable (table.Name,table)
                | FilterClause(a,rest) -> FilterClause(a,modifyAlias rest)
                | AggregateOp(a,c,rest) -> AggregateOp(a,c,modifyAlias rest)

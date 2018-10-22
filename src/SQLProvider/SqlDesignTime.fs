@@ -79,7 +79,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
             lazy
                 dict
                     [for t in tables.Force() do
-                        yield( t.FullName, 
+                        yield( t.SqlFullName, 
                             lazy
                                 match con with
                                 | Some con ->
@@ -88,11 +88,11 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                                     (cols,rel)
                                 | None -> 
                                     let cols = 
-                                        match prov.GetSchemaCache().Columns.TryGetValue(t.FullName) with
+                                        match prov.GetSchemaCache().Columns.TryGetValue(t.SqlFullName) with
                                         | true,cols -> cols
                                         | false,_ -> Map.empty
                                     let rel =
-                                        match prov.GetSchemaCache().Relationships.TryGetValue(t.FullName) with
+                                        match prov.GetSchemaCache().Relationships.TryGetValue(t.SqlFullName) with
                                         | true,rel -> rel
                                         | false,_ -> ([],[])
                                     (cols,rel))]
@@ -146,15 +146,15 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                             serviceType.AddMember errInfo
                        else                
                        for table in tablesforced do
-                        let t = ProvidedTypeDefinition(table.FullName + "Entity", Some typeof<SqlEntity>, isErased=true)
+                        let t = ProvidedTypeDefinition(table.ClrFullName + "Entity", Some typeof<SqlEntity>, isErased=true)
                         t.AddMemberDelayed(fun () -> ProvidedConstructor([ProvidedParameter("dataContext",typeof<ISqlDataContext>)],
-                                                        fun args -> <@@ ((%%args.[0] : obj) :?> ISqlDataContext).CreateEntity(table.FullName) @@>))
+                                                        fun args -> <@@ ((%%args.[0] : obj) :?> ISqlDataContext).CreateEntity(table.SqlFullName) @@>))
                         let desc = (sprintf "An instance of the %s %s belonging to schema %s" table.Type table.Name table.Schema)
                         t.AddXmlDoc desc
-                        yield table.FullName,(t,sprintf "The %s %s belonging to schema %s" table.Type table.Name table.Schema,"", table.Schema) ]
+                        yield table.SqlFullName,(t,sprintf "The %s %s belonging to schema %s" table.Type table.Name table.Schema,"", table.Schema) ]
 
         let createIndividualsType (table:Table) =
-            let tableTypeDef,_,_,_ = baseTypes.Force().[table.FullName]
+            let tableTypeDef,_,_,_ = baseTypes.Force().[table.SqlFullName]
             let t = ProvidedTypeDefinition(table.Schema + "." + table.Name + "." + "Individuals", None, isErased=true)
             let individualsTypes = ResizeArray<_>()
             individualsTypes.Add t
@@ -165,7 +165,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                let columns = 
                 match con with
                 | Some con -> prov.GetColumns(con,table)
-                | None -> prov.GetSchemaCache().Columns.TryGetValue(table.FullName) |> function | true,cols -> cols | false, _ -> Map.empty
+                | None -> prov.GetSchemaCache().Columns.TryGetValue(table.SqlFullName) |> function | true,cols -> cols | false, _ -> Map.empty
                match prov.GetPrimaryKey table with
                | Some pkName ->
                    let entities =
@@ -174,7 +174,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                             use com = prov.CreateCommand(con,prov.GetIndividualsQueryText(table,individualsAmount))
                             if con.State <> ConnectionState.Open then con.Open()
                             use reader = com.ExecuteReader()
-                            let ret = (designTimeDc :> ISqlDataContext).ReadEntities(table.FullName, columns, reader)
+                            let ret = (designTimeDc :> ISqlDataContext).ReadEntities(table.SqlFullName, columns, reader)
                             if (dbVendor <> DatabaseProviderTypes.MSACCESS) then con.Close()
                             if ret.Length > 0 then 
                                 prov.GetSchemaCache().Individuals.AddRange ret
@@ -188,7 +188,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                    let propertyMap =
                       match con with
                       | Some con -> prov.GetColumns(con,table)
-                      | None -> prov.GetSchemaCache().Columns.TryGetValue(table.FullName) |> function | true,cols -> cols | false, _ -> Map.empty
+                      | None -> prov.GetSchemaCache().Columns.TryGetValue(table.SqlFullName) |> function | true,cols -> cols | false, _ -> Map.empty
                       |> Seq.choose(fun col -> 
                         if col.Key = pkName then None else
                         let name = table.Schema + "." + table.Name + "." + col.Key + "Individuals"
@@ -228,7 +228,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                          match e.GetColumn pkName with
                          | FixedType pkValue -> 
                             
-                            let tableName = table.FullName
+                            let tableName = table.SqlFullName
                             let getterCode (args : Expr list) = <@@ ((%%args.[0] : obj) :?> ISqlDataContext).GetIndividual(tableName, pkValue) @@> 
 
                             // this next bit is just side effect to populate the "As Column" types for the supported columns
@@ -262,12 +262,12 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
         let baseCollectionTypes =
             lazy
                 dict [ for table in tables.Force() do  
-                        let name = table.FullName
+                        let name = table.SqlFullName
                         let (et,_,_,_) = baseTypes.Force().[name]
-                        let ct = ProvidedTypeDefinition(table.FullName, None ,isErased=true)                        
+                        let ct = ProvidedTypeDefinition(table.SqlFullName, None ,isErased=true)                        
                         ct.AddInterfaceImplementationsDelayed( fun () -> [ProvidedTypeBuilder.MakeGenericType(typedefof<System.Linq.IQueryable<_>>,[et :> Type]); typeof<ISqlDataContext>])
                         let it = createIndividualsType table 
-                        yield table.FullName,(ct,it) ]
+                        yield table.SqlFullName,(ct,it) ]
         
         // add the attributes and relationships
         for KeyValue(key,(t,_,_,_)) in baseTypes.Force() do 

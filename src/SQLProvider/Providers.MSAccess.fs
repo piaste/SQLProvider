@@ -101,9 +101,9 @@ type internal MSAccessProvider(contextSchemaPath) =
         let cmd = new OleDbCommand()
         cmd.Connection <- con :?> OleDbConnection
         let pk =
-            if not(schemaCache.PrimaryKeys.ContainsKey entity.Table.FullName) then
-                failwith("Can't update entity: Table doesn't have a primary key: " + entity.Table.FullName)
-            schemaCache.PrimaryKeys.[entity.Table.FullName]
+            if not(schemaCache.PrimaryKeys.ContainsKey entity.Table.SqlFullName) then
+                failwith("Can't update entity: Table doesn't have a primary key: " + entity.Table.SqlFullName)
+            schemaCache.PrimaryKeys.[entity.Table.SqlFullName]
         sb.Clear() |> ignore
 
         match pk with
@@ -113,7 +113,7 @@ type internal MSAccessProvider(contextSchemaPath) =
 
         let pkValues =
             match entity.GetPkColumnOption<obj> pk with
-            | [] -> failwith ("Error - you cannot update an entity that does not have a primary key. (" + entity.Table.FullName + ")")
+            | [] -> failwith ("Error - you cannot update an entity that does not have a primary key. (" + entity.Table.SqlFullName + ")")
             | v -> v
 
         let data =
@@ -150,12 +150,12 @@ type internal MSAccessProvider(contextSchemaPath) =
         let cmd = new OleDbCommand()
         cmd.Connection <- con :?> OleDbConnection
         sb.Clear() |> ignore
-        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.FullName)
-        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.FullName] else []
+        let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.SqlFullName)
+        let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.SqlFullName] else []
         sb.Clear() |> ignore
         let pkValues =
             match entity.GetPkColumnOption<obj> pk with
-            | [] -> failwith ("Error - you cannot delete an entity that does not have a primary key. (" + entity.Table.FullName + ")")
+            | [] -> failwith ("Error - you cannot delete an entity that does not have a primary key. (" + entity.Table.SqlFullName + ")")
             | v -> v
 
         pkValues |> List.iteri(fun i pkValue ->
@@ -217,18 +217,18 @@ type internal MSAccessProvider(contextSchemaPath) =
                 con.GetSchema("Tables").AsEnumerable()
                 |> Seq.filter (fun row -> ["TABLE";"VIEW";"LINK"] |> List.exists (fun typ -> typ = row.["TABLE_TYPE"].ToString())) // = "TABLE" || row.["TABLE_TYPE"].ToString() = "VIEW" || row.["TABLE_TYPE"].ToString() = "LINK")  //The text file specification 'A Link Specification' does not exist. You cannot import, export, or link using the specification.
                 |> Seq.map (fun row -> let table ={ Schema = Path.GetFileNameWithoutExtension(con.DataSource); Name = row.["TABLE_NAME"].ToString() ; Type=row.["TABLE_TYPE"].ToString() }
-                                       schemaCache.Tables.GetOrAdd(table.FullName,table)
+                                       schemaCache.Tables.GetOrAdd(table.SqlFullName,table)
                                        )
                 |> List.ofSeq
             tables
 
         member __.GetPrimaryKey(table) =
-            match schemaCache.PrimaryKeys.TryGetValue table.FullName with
+            match schemaCache.PrimaryKeys.TryGetValue table.SqlFullName with
             | true, [v] -> Some v
             | _ -> None
 
         member __.GetColumns(con,table) =
-            match schemaCache.Columns.TryGetValue table.FullName with
+            match schemaCache.Columns.TryGetValue table.SqlFullName with
             | (true,data) when data.Count > 0 -> data
             | _ ->
                 if con.State <> ConnectionState.Open then con.Open()
@@ -268,25 +268,25 @@ type internal MSAccessProvider(contextSchemaPath) =
                 match pks with
                 | [] -> ()
                 | c -> 
-                    schemaCache.PrimaryKeys.AddOrUpdate(table.FullName, (c |> List.sort), fun key old -> 
+                    schemaCache.PrimaryKeys.AddOrUpdate(table.SqlFullName, (c |> List.sort), fun key old -> 
                                 match pks.Length with 0 -> old | _ -> (c |> List.sort)) |> ignore
-                schemaCache.Columns.AddOrUpdate(table.FullName, columns, fun x old -> match columns.Count with 0 -> old | x -> columns)
+                schemaCache.Columns.AddOrUpdate(table.SqlFullName, columns, fun x old -> match columns.Count with 0 -> old | x -> columns)
 
 
         member __.GetRelationships(con,table) =
-          schemaCache.Relationships.GetOrAdd(table.FullName, fun name ->
+          schemaCache.Relationships.GetOrAdd(table.SqlFullName, fun name ->
             if con.State <> ConnectionState.Open then con.Open()
             let rels =
                 (con:?>OleDbConnection).GetOleDbSchemaTable(OleDbSchemaGuid.Foreign_Keys,[|null|]).AsEnumerable()
             let children = rels |> Seq.filter (fun r -> r.["PK_TABLE_NAME"].ToString() = table.Name)
-                                |> Seq.map    (fun r -> let pktableName = table.FullName
+                                |> Seq.map    (fun r -> let pktableName = table.SqlFullName
                                                         let fktableName = sprintf "[%s].[%s]" table.Schema  (r.["FK_TABLE_NAME"].ToString())
                                                         let name = sprintf "FK_%s_%s" (r.["FK_TABLE_NAME"].ToString()) (r.["PK_TABLE_NAME"].ToString())
                                                         {Name=name;PrimaryTable = pktableName;PrimaryKey=r.["PK_COLUMN_NAME"].ToString();ForeignTable=fktableName;ForeignKey=r.["FK_COLUMN_NAME"].ToString()})
                                 |> List.ofSeq
             let parents  = rels |> Seq.filter (fun r -> r.["FK_TABLE_NAME"].ToString() = table.Name)
                                 |> Seq.map    (fun r -> let pktableName = sprintf "[%s].[%s]" table.Schema  (r.["PK_TABLE_NAME"].ToString())
-                                                        let fktableName = table.FullName
+                                                        let fktableName = table.SqlFullName
                                                         let name = sprintf "FK_%s_%s" (r.["FK_TABLE_NAME"].ToString()) (r.["PK_TABLE_NAME"].ToString())
                                                         {Name=name;PrimaryTable = pktableName;PrimaryKey=r.["PK_COLUMN_NAME"].ToString();ForeignTable=fktableName;ForeignKey=r.["FK_COLUMN_NAME"].ToString()})
                                 |> List.ofSeq
@@ -498,7 +498,7 @@ type internal MSAccessProvider(contextSchemaPath) =
                 if projectionColumns |> Seq.isEmpty then "1" else
                 String.Join(",",
                     [|for KeyValue(k,v) in projectionColumns do
-                        let cols = (getTable k).FullName
+                        let cols = (getTable k).SqlFullName
                         let k = if k <> "" then k elif baseAlias <> "" then baseAlias else baseTable.Name
                         if v.Count = 0 then   // if no columns exist in the projection then get everything
                             for col in schemaCache.Columns.[cols] |> Seq.map (fun c -> c.Key) do
@@ -665,7 +665,7 @@ type internal MSAccessProvider(contextSchemaPath) =
                                 cmd.CommandTimeout <- timeout.Value
                             cmd.ExecuteNonQuery() |> ignore
                             // remove the pk to prevent this attempting to be used again
-                            e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.FullName], None)
+                            e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.SqlFullName], None)
                             e._State <- Deleted
                         | Deleted | Unchanged -> failwith "Unchanged entity encountered in update list - this should not be possible!")
                     trnsx.Commit()
@@ -728,7 +728,7 @@ type internal MSAccessProvider(contextSchemaPath) =
                                         cmd.CommandTimeout <- timeout.Value
                                     do! cmd.ExecuteNonQueryAsync() |> Async.AwaitTask |> Async.Ignore
                                     // remove the pk to prevent this attempting to be used again
-                                    e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.FullName], None)
+                                    e.SetPkColumnOptionSilent(schemaCache.PrimaryKeys.[e.Table.SqlFullName], None)
                                     e._State <- Deleted
                                 }
                             | Deleted | Unchanged -> failwith "Unchanged entity encountered in update list - this should not be possible!"

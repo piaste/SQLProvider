@@ -259,7 +259,7 @@ type SqlEntity(dc: ISqlDataContext, tableName, columns: ColumnLookup) =
     /// creates a new SQL entity from alias data in this entity
     member internal e.GetSubTable(alias:string,tableName) =
         aliasCache.GetOrAdd(alias, fun alias ->
-            let tableName = if tableName <> "" then tableName else e.Table.FullName
+            let tableName = if tableName <> "" then tableName else e.Table.SqlFullName
             let newEntity = SqlEntity(dc, tableName, columns)
             // attributes names cannot have a period in them unless they are an alias
             let pred =
@@ -362,7 +362,7 @@ type SqlEntity(dc: ISqlDataContext, tableName, columns: ColumnLookup) =
     interface System.ComponentModel.ICustomTypeDescriptor with
         member e.GetComponentName() = TypeDescriptor.GetComponentName(e,true)
         member e.GetDefaultEvent() = TypeDescriptor.GetDefaultEvent(e,true)
-        member e.GetClassName() = e.Table.FullName
+        member e.GetClassName() = e.Table.SqlFullName
         member e.GetEvents(_) = TypeDescriptor.GetEvents(e,true)
         member e.GetEvents() = TypeDescriptor.GetEvents(e,null,true)
         member e.GetConverter() = TypeDescriptor.GetConverter(e,true)
@@ -709,9 +709,9 @@ module internal CommonTasks =
                     |> Seq.iter(fun t -> provider.GetColumns(con,t) |> ignore )
 
     let checkKey (pkLookup:ConcurrentDictionary<string, string list>) id (e:SqlEntity) =
-        if pkLookup.ContainsKey e.Table.FullName then
-            match e.GetPkColumnOption pkLookup.[e.Table.FullName] with
-            | [] ->  e.SetPkColumnSilent(pkLookup.[e.Table.FullName], id)
+        if pkLookup.ContainsKey e.Table.SqlFullName then
+            match e.GetPkColumnOption pkLookup.[e.Table.SqlFullName] with
+            | [] ->  e.SetPkColumnSilent(pkLookup.[e.Table.SqlFullName], id)
             | _  -> () // if the primary key exists, do nothing
                             // this is because non-identity columns will have been set
                             // manually and in that case scope_identity would bring back 0 "" or whatever
