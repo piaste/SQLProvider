@@ -100,13 +100,13 @@ module public QueryEvents =
                            Parameters = parameters
                          }
 
-   let internal PublishSqlQuery connStr qry (spc:IDbDataParameter seq) = 
+   let PublishSqlQuery connStr qry (spc:IDbDataParameter seq) = 
       publishSqlQuery connStr qry (spc |> Seq.map(fun p -> p.ParameterName, p.Value))
 
-   let internal PublishSqlQueryCol connStr qry (spc:DbParameterCollection) = 
+   let PublishSqlQueryCol connStr qry (spc:DbParameterCollection) = 
       publishSqlQuery connStr qry [ for p in spc -> (p.ParameterName, p.Value) ]
 
-   let internal PublishSqlQueryICol connStr qry (spc:IDataParameterCollection) = 
+   let PublishSqlQueryICol connStr qry (spc:IDataParameterCollection) = 
       publishSqlQuery connStr qry [ for op in spc do
                                       let p = op :?> IDataParameter
                                       yield (p.ParameterName, p.Value)]
@@ -117,7 +117,7 @@ module public QueryEvents =
    [<CLIEvent>]
    let LinqExpressionEvent = expressionEvent.Publish
 
-   let internal PublishExpression(e) = expressionEvent.Trigger(e)
+   let PublishExpression(e) = expressionEvent.Trigger(e)
 
    
 type EntityState =
@@ -257,7 +257,7 @@ type SqlEntity(dc: ISqlDataContext, tableName, columns: ColumnLookup) =
     member __.HasValue(key) = data.ContainsKey key
 
     /// creates a new SQL entity from alias data in this entity
-    member internal e.GetSubTable(alias:string,tableName) =
+    member e.GetSubTable(alias:string,tableName) =
         aliasCache.GetOrAdd(alias, fun alias ->
             let tableName = if tableName <> "" then tableName else e.Table.FullName
             let newEntity = SqlEntity(dc, tableName, columns)
@@ -701,7 +701,7 @@ type GroupResultItems<'key>(keyname:String*String, keyval, distinctItem:SqlEntit
     member __.AggregateStdDev<'T>(columnName) = this.fetchItem<'T> "STDDEV" columnName
     member __.AggregateVariance<'T>(columnName) = this.fetchItem<'T> "VAR" columnName
 
-module internal CommonTasks =
+module CommonTasks =
 
     let ``ensure columns have been loaded`` (provider:ISqlProvider) (con:IDbConnection) (entities:ConcurrentDictionary<SqlEntity, DateTime>) =
         entities |> Seq.map(fun e -> e.Key.Table)

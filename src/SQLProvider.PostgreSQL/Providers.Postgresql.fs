@@ -16,9 +16,7 @@ open Npgsql
 open NpgsqlTypes
 
 module PostgreSQL =
-    let mutable resolutionPath = String.Empty
     let mutable schemas = [| "public" |]
-    let mutable referencedAssemblies = [| |]
 
     
     let [<Literal>] ANONYMOUS_PARAMETER_NAME = "param"
@@ -179,24 +177,7 @@ module PostgreSQL =
 
         findDbType <- resolveAlias >> mappings.TryFind
 
-    let createConnection connectionString =
-        try
-            Activator.CreateInstance(connectionType,[|box connectionString|]) :?> IDbConnection
-        with
-        | :? System.Reflection.ReflectionTypeLoadException as ex ->
-            let errorfiles = ex.LoaderExceptions |> Array.map(fun e -> e.GetBaseException().Message) |> Seq.distinct |> Seq.toArray
-            let msg = ex.Message + "\r\n" + String.Join("\r\n", errorfiles)
-            raise(new System.Reflection.TargetInvocationException(msg, ex))
-        | :? System.Reflection.TargetInvocationException as ex when (ex.InnerException <> null && ex.InnerException :? DllNotFoundException) ->
-            let msg = ex.GetBaseException().Message + " , Path: " + (System.IO.Path.GetFullPath resolutionPath)
-            raise(new System.Reflection.TargetInvocationException(msg, ex))
-        | :? System.Reflection.TargetInvocationException as e when (e.InnerException <> null) ->
-            failwithf "Could not create the connection, most likely this means that the connectionString is wrong. See error from Npgsql to troubleshoot: %s" e.InnerException.Message
-        | :? System.TypeInitializationException as te when (te.InnerException :? System.Reflection.TargetInvocationException) ->
-            let ex = te.InnerException :?> System.Reflection.TargetInvocationException
-            let msg = ex.GetBaseException().Message + ", Path: " + (System.IO.Path.GetFullPath resolutionPath)
-            raise(new System.Reflection.TargetInvocationException(msg, ex.InnerException)) 
-
+    
     let createCommand commandText connection =
         try
             Activator.CreateInstance(commandType,[|box commandText;box connection|]) :?> IDbCommand
@@ -559,8 +540,6 @@ type PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAsse
         cmd
 
     do
-        PostgreSQL.resolutionPath <- resolutionPath
-        PostgreSQL.referencedAssemblies <- referencedAssemblies
 
         if not(String.IsNullOrEmpty owner) then
             PostgreSQL.schemas <- 
@@ -602,7 +581,7 @@ type PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAsse
                     if comment <> null then comment else ""
                 else
                 "")
-        member __.CreateConnection(connectionString) = PostgreSQL.createConnection connectionString
+        member __.CreateConnection(connectionString) = new NpgsqlConnection(connectionString) :> IDbConnection
         member __.CreateCommand(connection,commandText) =  PostgreSQL.createCommand commandText connection
         member __.CreateCommandParameter(param, value) = PostgreSQL.createCommandParameter param value :> IDbDataParameter
         member __.ExecuteSprocCommand(con, param, retCols, values:obj array) = PostgreSQL.executeSprocCommand con param retCols values
@@ -808,7 +787,7 @@ type PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAsse
             // NOTE: presently this is identical to the SQLite code (except the whitespace qualifiers),
             // however it is duplicated intentionally so that any Postgre specific
             // optimisations can be applied here.
-            let parameters = ResizeArray<_>()
+            let parameters = ResizeArray<IDbDataParameter>()
             // NOTE: really need to assign the parameters their correct db types
             let param = ref 0
             let nextParam() =

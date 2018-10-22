@@ -1,4 +1,4 @@
-﻿module internal FSharp.Data.Sql.Patterns
+﻿module FSharp.Data.Sql.Patterns
 
 open System
 open System.Linq.Expressions

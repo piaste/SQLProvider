@@ -253,7 +253,7 @@ module ConfigHelpers =
 #endif
             connectionString
 
-module internal SchemaProjections = 
+module SchemaProjections = 
     
     //Creatviely taken from FSharp.Data (https://github.com/fsharp/FSharp.Data/blob/master/src/CommonRuntime/NameUtils.fs)
     let private tryAt (s:string) i = if i >= s.Length then None else Some s.[i]
@@ -339,7 +339,7 @@ module internal SchemaProjections =
                      |> String.concat " or "
                      |> sprintf "and (%s)"
 
-module internal Reflection = 
+module Reflection = 
     
     open System.Reflection
     open System.IO

@@ -19,7 +19,7 @@ type TransactionOptions = {
     IsolationLevel : IsolationLevel
 }
 
-module internal TransactionUtils =
+module TransactionUtils =
     let toSystemTransactionsIsolationLevel isolationLevel =
         match isolationLevel with
         | IsolationLevel.Serializable -> System.Transactions.IsolationLevel.Serializable

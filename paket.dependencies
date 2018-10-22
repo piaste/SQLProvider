@@ -31,6 +31,8 @@ group Providers
     source https://nuget.org/api/v2
 
     nuget Npgsql
+    nuget Npgsql.Json.NET
+    nuget Npgsql.LegacyPostGIS    
 
 group Scripts
     source https://nuget.org/api/v2

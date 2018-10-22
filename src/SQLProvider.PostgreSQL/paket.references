@@ -2,3 +2,5 @@ FSharp.Core
 
 group Providers
    Npgsql
+   Npgsql.Json.NET
+   Npgsql.LegacyPostGIS

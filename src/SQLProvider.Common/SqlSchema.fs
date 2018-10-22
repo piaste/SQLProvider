@@ -7,7 +7,7 @@ open System.Text.RegularExpressions
 open FSharp.Data.Sql.Common.Utilities
 open System.Reflection
 
-module internal Patterns =
+module Patterns =
     let (|Match|_|) (pat:string) (inp:string) =
         let m = Regex.Match(inp, pat) in
         if m.Success then Some (List.tail [ for g in m.Groups -> g.Value ]) else None
