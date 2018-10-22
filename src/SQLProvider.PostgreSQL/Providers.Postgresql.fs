@@ -12,60 +12,26 @@ open FSharp.Data.Sql
 open FSharp.Data.Sql.Transactions
 open FSharp.Data.Sql.Schema
 open FSharp.Data.Sql.Common
+open Npgsql
+open NpgsqlTypes
 
 module PostgreSQL =
     let mutable resolutionPath = String.Empty
     let mutable schemas = [| "public" |]
     let mutable referencedAssemblies = [| |]
 
-    let assemblyNames = [
-        "Npgsql.dll"
-    ]
-
+    
     let [<Literal>] ANONYMOUS_PARAMETER_NAME = "param"
-
-    let assembly =
-        lazy
-            match Reflection.tryLoadAssemblyFrom resolutionPath referencedAssemblies assemblyNames with
-            | Choice1Of2(assembly) -> assembly
-            | Choice2Of2(paths, errors) ->
-                let details = 
-                    match errors with 
-                    | [] -> "" 
-                    | x -> Environment.NewLine + "Details: " + Environment.NewLine + String.Join(Environment.NewLine, x)
-                let assemblyNames = String.Join(", ", assemblyNames |> List.toArray)
-                let resolutionPaths = String.Join(Environment.NewLine, paths |> Seq.filter(fun p -> not(String.IsNullOrEmpty p)))
-                failwithf "Unable to resolve assemblies. One of %s must exist in the paths: %s %s %s" 
-                    assemblyNames Environment.NewLine resolutionPaths details
-
-    let isLegacyVersion = lazy (assembly.Value.GetName().Version.Major < 3)
-    let findType name = 
-        let types = 
-            try assembly.Value.GetTypes() 
-            with | :? System.Reflection.ReflectionTypeLoadException as e ->
-                let msgs = e.LoaderExceptions |> Seq.map(fun e -> e.GetBaseException().Message) |> Seq.distinct
-                let details = "Details: " + Environment.NewLine + String.Join(Environment.NewLine, msgs)
-                failwith (e.Message + Environment.NewLine + details)
-        types |> Array.tryFind (fun t -> t.Name = name)
-    let getType = findType >> Option.get
-
-    let connectionType = lazy (getType "NpgsqlConnection")
-    let commandType = lazy (getType "NpgsqlCommand")
-    let parameterType = lazy (getType "NpgsqlParameter")
-    let dbType = lazy (getType "NpgsqlDbType")
-    let dbTypeGetter = lazy (parameterType.Value.GetProperty("NpgsqlDbType").GetGetMethod())
-    let dbTypeSetter = lazy (parameterType.Value.GetProperty("NpgsqlDbType").GetSetMethod())
-
-    let getDbType(providerType : int) =
-        let parameterType = parameterType.Value
-        let p = Activator.CreateInstance(parameterType, [| |]) :?> IDbDataParameter
-        dbTypeSetter.Value.Invoke(p, [|providerType|]) |> ignore
-        p.DbType
+    
+    let connectionType = typeof<NpgsqlConnection>
+    let commandType = typeof<NpgsqlCommand>
+    let parameterType = typeof<NpgsqlParameter>
+    let dbType = typeof<NpgsqlDbType>
 
     let mutable findDbType : (string -> TypeMapping option)  = fun _ -> failwith "!"
 
     let parseDbType dbTypeName =
-        try Some(Enum.Parse(dbType.Value, dbTypeName) |> unbox<int>)
+        try Some(Enum.Parse(dbType, dbTypeName) |> unbox<int>)
         with _ -> None
 
     let tryReadValueProperty instance =
@@ -84,7 +50,7 @@ module PostgreSQL =
         let normalizedValue =
             if not (isOptionValue value) then (if value = null || value.GetType() = typeof<DBNull> then box DBNull.Value else value) else
             match tryReadValueProperty value with Some(v) -> v | None -> box DBNull.Value
-        let p = Activator.CreateInstance(parameterType.Value, [||]) :?> IDbDataParameter
+        let p = NpgsqlParameter()
         p.ParameterName <- 
           let isAnonymousParam =
             param.Direction <> ParameterDirection.Output &&
@@ -92,7 +58,7 @@ module PostgreSQL =
             Int32.TryParse(param.Name.Substring (ANONYMOUS_PARAMETER_NAME.Length), ref 0)
           if isAnonymousParam then "" else param.Name
 
-        Option.iter (fun dbt -> dbTypeSetter.Value.Invoke(p, [| dbt |]) |> ignore) param.TypeMapping.ProviderType
+        Option.iter (fun dbt -> p.NpgsqlDbType <- enum dbt) param.TypeMapping.ProviderType
         p.Value <- normalizedValue
         p.Direction <- param.Direction
         Option.iter (fun l -> p.Size <- l) param.Length
@@ -106,96 +72,92 @@ module PostgreSQL =
         Utilities.genericAliasNotation aliasSprint col
 
     // store the enum value for Array; it will be combined later with the generic argument
-    let arrayProviderDbType = lazy (Option.get <| parseDbType "Array")        
+    let arrayProviderDbType = NpgsqlTypes.NpgsqlDbType.Array
     
     /// Pairs a CLR type by type object with a value of Npgsql's type enumeration
     let typemap' t = List.tryPick parseDbType >> Option.map (fun dbType -> t, dbType)
 
     /// Pairs a CLR type by type parameter with a value of Npgsql's type enumeration
-    let typemap<'t> = typemap' typeof<'t>
+    //let typemap<'t> = typemap' typeof<'t>
+    let typemap<'t> npgsqlDbType  = 
+      let dummyParameter = NpgsqlParameter()
+      dummyParameter.NpgsqlDbType <- npgsqlDbType
+      Some (typeof<'t>, dummyParameter.DbType)
     
-    /// Pairs a CLR type by name with a value of Npgsql's type enumeration
-    let namemap name dbTypes = findType name |> Option.bind (fun ty -> typemap' ty dbTypes)
 
     let createTypeMappings () =            
         // http://www.npgsql.org/doc/2.2/
         // http://www.npgsql.org/doc/3.0/types.html
         let mappings =
-            [ "abstime"                     , typemap<DateTime>                   ["Abstime"]
-              "bigint"                      , typemap<int64>                      ["Bigint"]
-              "bit",                    (if isLegacyVersion.Value
-                                         then typemap<bool>                       ["Bit"]
-                                         else typemap<BitArray>                   ["Bit"])
-              "bit varying"                 , typemap<BitArray>                   ["Varbit"]
-              "boolean"                     , typemap<bool>                       ["Boolean"]
-              "box"                         , namemap "NpgsqlBox"                 ["Box"]
-              "bytea"                       , typemap<byte[]>                     ["Bytea"]
-              "\"char\""                    , typemap<char>                       ["InternalChar"; "SingleChar"]
-              "character"                   , typemap<string>                     ["Char"]
-              "character varying"           , typemap<string>                     ["Varchar"]
-              "cid"                         , typemap<uint32>                     ["Cid"]
-              "cidr"                        , namemap "NpgsqlInet"                ["Cidr"]
-              "circle"                      , namemap "NpgsqlCircle"              ["Circle"]
-              "citext"                      , typemap<string>                     ["Citext"]
-              "date"                        , typemap<DateTime>                   ["Date"]
-              "double precision"            , typemap<double>                     ["Double"]
-              "geometry"                    , namemap "IGeometry"                 ["Geometry"]
-              "hstore",                 (if isLegacyVersion.Value
-                                         then typemap<string>                     ["Hstore"]
-                                         else typemap<IDictionary<string,string>> ["Hstore"])
-              "inet"                        , typemap<IPAddress>                  ["Inet"]
-            //"int2vector"                  , typemap<short[]>                    ["Int2Vector"]
-              "integer"                     , typemap<int32>                      ["Integer"]
-              "interval"                    , typemap<TimeSpan>                   ["Interval"]
-              "json"                        , typemap<string>                     ["Json"]
-              "jsonb"                       , typemap<string>                     ["Jsonb"]
-              "line"                        , namemap "NpgsqlLine"                ["Line"]
-              "lseg"                        , namemap "NpgsqlLSeg"                ["LSeg"]
-              "ltree"                       , typemap<string>                     ["Unknown"]
-              "macaddr"                     , typemap<PhysicalAddress>            ["MacAddr"]
-              "money"                       , typemap<decimal>                    ["Money"]
-              "name"                        , typemap<string>                     ["Name"]
-              "numeric"                     , typemap<decimal>                    ["Numeric"]
-              "oid"                         , typemap<uint32>                     ["Oid"]
+            [ "abstime"                     , typemap<DateTime>                   NpgsqlDbType.Abstime
+              "bigint"                      , typemap<int64>                      NpgsqlDbType.Bigint
+              "bit",                          typemap<BitArray>                   NpgsqlDbType.Bit
+              "bit varying"                 , typemap<BitArray>                   NpgsqlDbType.Varbit
+              "boolean"                     , typemap<bool>                       NpgsqlDbType.Boolean
+              "box"                         , typemap<NpgsqlBox>                 NpgsqlDbType.Box
+              "bytea"                       , typemap<byte[]>                     NpgsqlDbType.Bytea
+              "\"char\""                    , typemap<char>                       NpgsqlDbType.InternalChar
+              "character"                   , typemap<string>                     NpgsqlDbType.Char
+              "character varying"           , typemap<string>                     NpgsqlDbType.Varchar
+              "cid"                         , typemap<uint32>                     NpgsqlDbType.Cid
+              "cidr"                        , typemap<NpgsqlInet>                NpgsqlDbType.Cidr
+              "circle"                      , typemap<NpgsqlCircle>              NpgsqlDbType.Circle
+              "citext"                      , typemap<string>                     NpgsqlDbType.Citext
+              "date"                        , typemap<DateTime>                   NpgsqlDbType.Date
+              "double precision"            , typemap<double>                     NpgsqlDbType.Double
+              "geometry"                    , typemap<NpgsqlPoint>                 NpgsqlDbType.Geometry
+              "hstore",                       typemap<IDictionary<string,string>> NpgsqlDbType.Hstore
+              "inet"                        , typemap<IPAddress>                  NpgsqlDbType.Inet
+            //"int2vector"                  , typemap<short[]>                    NpgsqlDbType.Int2Vector
+              "integer"                     , typemap<int32>                      NpgsqlDbType.Integer
+              "interval"                    , typemap<TimeSpan>                   NpgsqlDbType.Interval
+              "json"                        , typemap<string>                     NpgsqlDbType.Json
+              "jsonb"                       , typemap<string>                     NpgsqlDbType.Jsonb
+              "line"                        , typemap<NpgsqlLine>                NpgsqlDbType.Line
+              "lseg"                        , typemap<NpgsqlLSeg>                NpgsqlDbType.LSeg
+              "ltree"                       , typemap<string>                     NpgsqlDbType.Unknown
+              "macaddr"                     , typemap<PhysicalAddress>            NpgsqlDbType.MacAddr
+              "money"                       , typemap<decimal>                    NpgsqlDbType.Money
+              "name"                        , typemap<string>                     NpgsqlDbType.Name
+              "numeric"                     , typemap<decimal>                    NpgsqlDbType.Numeric
+              "oid"                         , typemap<uint32>                     NpgsqlDbType.Oid
             //"oidvector",              (if isLegacyVersion.Value
-            //                           then typemap<string>                     ["Oidvector"]
-            //                           else typemap<uint32[]>                   ["Oidvector"])
-              "path"                        , namemap "NpgsqlPath"                ["Path"]
-            //"pg_lsn"                      , typemap<???>                        ["???"]
-              "point"                       , namemap "NpgsqlPoint"               ["Point"]
-              "polygon"                     , namemap "NpgsqlPolygon"             ["Polygon"]
-              "real"                        , typemap<single>                     ["Real"]
-              "record"                      , typemap<SqlEntity[]>                ["Refcursor"]
-              "refcursor"                   , typemap<SqlEntity[]>                ["Refcursor"]
-              "regtype"                     , typemap<uint32>                     ["Regtype"]
-              "SETOF refcursor"             , typemap<SqlEntity[]>                ["Refcursor"]
-              "smallint"                    , typemap<int16>                      ["Smallint"]
-              "text"                        , typemap<string>                     ["Text"]
-              "tid"                         , namemap "NpgsqlTid"                 ["Tid"]
-              "time without time zone"      , typemap<TimeSpan>                   ["Time"]
-              "time with time zone",    (if isLegacyVersion.Value
-                                         then namemap "NpgsqlTimeTZ"              ["TimeTZ"]
-                                         else typemap<DateTimeOffset>             ["TimeTZ"])
-              "timestamp without time zone" , typemap<DateTime>                   ["Timestamp"]
-              "timestamp with time zone"    , typemap<DateTime>                   ["TimestampTZ"]
-              "tsquery"                     , namemap "NpgsqlTsQuery"             ["TsQuery"]
-              "tsvector"                    , namemap "NpgsqlTsVector"            ["TsVector"]
-            //"txid_snapshot"               , typemap<???>                        ["???"]
-              "unknown"                     , typemap<obj>                        ["Unknown"]
-              "uuid"                        , typemap<Guid>                       ["Uuid"]
-              "xid"                         , typemap<uint32>                     ["Xid"]
-              "xml"                         , typemap<string>                     ["Xml"]
-            //"composite"                   , typemap<obj>                        ["Composite"]
-            //"enum"                        , typemap<obj>                        ["Enum"]
-            //"range"                       , typemap<Array>                      ["Range"]
+            //                           then typemap<string>                     NpgsqlDbType.Oidvector
+            //                           else typemap<uint32[]>                   NpgsqlDbType.Oidvector)
+              "path"                        , typemap<NpgsqlPath>                NpgsqlDbType.Path
+            //"pg_lsn"                      , typemap<???>                        NpgsqlDbType.???
+              "point"                       , typemap<NpgsqlPoint>               NpgsqlDbType.Point
+              "polygon"                     , typemap<NpgsqlPolygon>             NpgsqlDbType.Polygon
+              "real"                        , typemap<single>                     NpgsqlDbType.Real
+              "record"                      , typemap<SqlEntity[]>                NpgsqlDbType.Refcursor
+              "refcursor"                   , typemap<SqlEntity[]>                NpgsqlDbType.Refcursor
+              "regtype"                     , typemap<uint32>                     NpgsqlDbType.Regtype
+              "SETOF refcursor"             , typemap<SqlEntity[]>                NpgsqlDbType.Refcursor
+              "smallint"                    , typemap<int16>                      NpgsqlDbType.Smallint
+              "text"                        , typemap<string>                     NpgsqlDbType.Text
+              "tid"                         , typemap<NpgsqlTid>                 NpgsqlDbType.Tid
+              "time without time zone"      , typemap<TimeSpan>                   NpgsqlDbType.Time
+              "time with time zone",          typemap<DateTimeOffset>             NpgsqlDbType.TimeTz
+              "timestamp without time zone" , typemap<DateTime>                   NpgsqlDbType.Timestamp
+              "timestamp with time zone"    , typemap<DateTime>                   NpgsqlDbType.TimestampTz
+              "tsquery"                     , typemap<NpgsqlTsQuery>             NpgsqlDbType.TsQuery
+              "tsvector"                    , typemap<NpgsqlTsVector>            NpgsqlDbType.TsVector
+            //"txid_snapshot"               , typemap<???>                        NpgsqlDbType.???
+              "unknown"                     , typemap<obj>                        NpgsqlDbType.Unknown
+              "uuid"                        , typemap<Guid>                       NpgsqlDbType.Uuid
+              "xid"                         , typemap<uint32>                     NpgsqlDbType.Xid
+              "xml"                         , typemap<string>                     NpgsqlDbType.Xml
+            //"composite"                   , typemap<obj>                        NpgsqlDbType.Composite
+            //"enum"                        , typemap<obj>                        NpgsqlDbType.Enum
+            //"range"                       , typemap<Array>                      NpgsqlDbType.Range
               ]
             |> List.choose (
                 function
                 | name, Some(clrType, providerType) -> 
                     Some (name, { ProviderTypeName = Some(name)
                                   ClrType = clrType.AssemblyQualifiedName
-                                  DbType = getDbType providerType
-                                  ProviderType = Some(providerType) })    
+                                  DbType = providerType
+                                  ProviderType = Some(int providerType) })    
                 | _ -> None
             )
             |> Map.ofList
@@ -219,7 +181,7 @@ module PostgreSQL =
 
     let createConnection connectionString =
         try
-            Activator.CreateInstance(connectionType.Value,[|box connectionString|]) :?> IDbConnection
+            Activator.CreateInstance(connectionType,[|box connectionString|]) :?> IDbConnection
         with
         | :? System.Reflection.ReflectionTypeLoadException as ex ->
             let errorfiles = ex.LoaderExceptions |> Array.map(fun e -> e.GetBaseException().Message) |> Seq.distinct |> Seq.toArray
@@ -237,13 +199,13 @@ module PostgreSQL =
 
     let createCommand commandText connection =
         try
-            Activator.CreateInstance(commandType.Value,[|box commandText;box connection|]) :?> IDbCommand
+            Activator.CreateInstance(commandType,[|box commandText;box connection|]) :?> IDbCommand
         with
           | :? System.Reflection.TargetInvocationException as e ->
             failwithf "Could not create the command, error from Npgsql %s" e.InnerException.Message
 
-    let readParameter (parameter:IDbDataParameter) =
-        match parameter.DbType, (dbTypeGetter.Value.Invoke(parameter, [||]) :?> int) with
+    let readParameter (parameter:NpgsqlParameter) =
+        match parameter.DbType, int parameter.NpgsqlDbType with
         | DbType.Object, 23 ->
             match parameter.Value with
             | null -> null
@@ -290,10 +252,9 @@ module PostgreSQL =
                         use reader = com.ExecuteReader()
                         SingleResultSet(col.Name, Sql.dataReaderToArray reader)
                     | Some "refcursor" ->
-                        if not isLegacyVersion.Value then
-                            let cursorName = com.ExecuteScalar() |> unbox
-                            com.CommandText <- sprintf @"FETCH ALL IN ""%s""" cursorName
-                            com.CommandType <- CommandType.Text
+                        let cursorName = com.ExecuteScalar() |> unbox
+                        com.CommandText <- sprintf @"FETCH ALL IN ""%s""" cursorName
+                        com.CommandType <- CommandType.Text
                         use reader = com.ExecuteReader()
                         SingleResultSet(col.Name, Sql.dataReaderToArray reader)
                     | Some "SETOF refcursor" ->
@@ -344,11 +305,10 @@ module PostgreSQL =
                             let! r = Sql.dataReaderToArrayAsync reader
                             return SingleResultSet(col.Name, r)
                         | Some "refcursor" ->
-                            if not isLegacyVersion.Value then
-                                let! cur = com.ExecuteScalarAsync() |> Async.AwaitTask
-                                let cursorName = cur |> unbox
-                                com.CommandText <- sprintf @"FETCH ALL IN ""%s""" cursorName
-                                com.CommandType <- CommandType.Text
+                            let! cur = com.ExecuteScalarAsync() |> Async.AwaitTask
+                            let cursorName = cur |> unbox
+                            com.CommandText <- sprintf @"FETCH ALL IN ""%s""" cursorName
+                            com.CommandType <- CommandType.Text
                             use! reader = com.ExecuteReaderAsync() |> Async.AwaitTask
                             let! r = Sql.dataReaderToArrayAsync reader
                             return SingleResultSet(col.Name, r)
@@ -473,8 +433,8 @@ module PostgreSQL =
                                                   ReturnColumns = (fun _ _ -> rcolumns) }))
         )
 
-type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies) =
-    let schemaCache = SchemaCache.LoadOrEmpty(contextSchemaPath)
+type PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies) =
+    let schemaCache = FSharp.Data.Sql.Common.SchemaCache.LoadOrEmpty(contextSchemaPath)
     let myLock = new Object()
 
     let createInsertCommand (con:IDbConnection) (sb:Text.StringBuilder) (entity:SqlEntity) =
@@ -605,9 +565,9 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
         if not(String.IsNullOrEmpty owner) then
             PostgreSQL.schemas <- 
               owner.Split(';', ',', ' ', '\n', '\r')
-              |> Array.filter (not << String.IsNullOrWhiteSpace)              
+              |> Array.filter (not << String.IsNullOrWhiteSpace)                      
 
-    interface ISqlProvider with
+    interface FSharp.Data.Sql.Common.ISqlProvider with
         member __.GetLockObject() = myLock
         member __.GetTableDescription(con,tableName) = 
             Sql.connect con (fun _ ->
@@ -644,7 +604,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                 "")
         member __.CreateConnection(connectionString) = PostgreSQL.createConnection connectionString
         member __.CreateCommand(connection,commandText) =  PostgreSQL.createCommand commandText connection
-        member __.CreateCommandParameter(param, value) = PostgreSQL.createCommandParameter param value
+        member __.CreateCommandParameter(param, value) = PostgreSQL.createCommandParameter param value :> IDbDataParameter
         member __.ExecuteSprocCommand(con, param, retCols, values:obj array) = PostgreSQL.executeSprocCommand con param retCols values
         member __.ExecuteSprocCommandAsync(con, param, retCols, values:obj array) = PostgreSQL.executeSprocCommandAsync con param retCols values
         member __.CreateTypeMappings(_) = PostgreSQL.createTypeMappings()
@@ -730,7 +690,7 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
                                             match pt with
                                             | None -> None
                                             | Some t ->                                            
-                                                let providerType = (t ||| PostgreSQL.arrayProviderDbType.Value)                  
+                                                let providerType = (enum t ||| NpgsqlDbType.Array)                  
                                                 
                                                 // .MakeArrayType() would be more elegant, but on Mono it causes
                                                 // issues due to Npgsql producing Foo[*] arrays (variable lower bound)
@@ -739,8 +699,8 @@ type internal PostgresqlProvider(resolutionPath, contextSchemaPath, owner, refer
 
                                                 Some { ProviderTypeName = Some "array"
                                                        ClrType = sampleArrayOfCorrectRank.GetType().AssemblyQualifiedName
-                                                       ProviderType = Some providerType
-                                                       DbType = PostgreSQL.getDbType providerType
+                                                       ProviderType = Some (int providerType)
+                                                       DbType = NpgsqlParameter(NpgsqlDbType = providerType).DbType
                                                      }
                                         )
                                                                 

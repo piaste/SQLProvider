@@ -162,8 +162,8 @@ type SqlEntity(dc: ISqlDataContext, tableName, columns: ColumnLookup) =
         e._State <- Delete
         dc.SubmitChangedEntity e
 
-    member internal e.TriggerPropertyChange(name) = propertyChanged.Trigger(e, PropertyChangedEventArgs(name))
-    member internal __.ColumnValuesWithDefinition = seq { for kvp in data -> kvp.Key, kvp.Value, columns.TryFind(kvp.Key) }
+    member e.TriggerPropertyChange(name) = propertyChanged.Trigger(e, PropertyChangedEventArgs(name))
+    member __.ColumnValuesWithDefinition = seq { for kvp in data -> kvp.Key, kvp.Value, columns.TryFind(kvp.Key) }
 
     member __.ColumnValues = seq { for kvp in data -> kvp.Key, kvp.Value }
     member __.HasColumn(key, ?comparison)= 
@@ -203,7 +203,7 @@ type SqlEntity(dc: ISqlDataContext, tableName, columns: ColumnLookup) =
         keys |> List.choose(fun key -> 
             __.GetColumnOption<'T>(key)) 
 
-    member internal this.GetColumnOptionWithDefinition(key) =
+    member this.GetColumnOptionWithDefinition(key) =
         this.GetColumnOption(key) |> Option.bind (fun v -> Some(box v, columns.TryFind(key)))
 
     member private e.UpdateField key =
@@ -441,7 +441,7 @@ and table = string
 
 and SelectData = LinkQuery of LinkData | GroupQuery of GroupData | CrossJoin of alias * Table
 and UnionType = NormalUnion | UnionAll | Intersect | Except
-and internal SqlExp =
+and SqlExp =
     | BaseTable    of alias * Table                         // name of the initiating IQueryable table - this isn't always the ultimate table that is selected
     | SelectMany   of alias * alias * SelectData * SqlExp   // from alias, to alias and join data including to and from table names. Note both the select many and join syntax end up here
     | FilterClause of Condition * SqlExp                    // filters from the where clause(es)
@@ -487,7 +487,7 @@ and internal SqlExp =
                 | AggregateOp(_,_,rest) -> isGroupBy rest
             isGroupBy this
 
-and internal SqlQuery =
+and SqlQuery =
     { Filters       : Condition list
       HavingFilters : Condition list
       Links         : (alias * LinkData * alias) list
@@ -571,7 +571,7 @@ and internal SqlQuery =
             let sq = convert (SqlQuery.Empty) exp
             sq
 
-and internal ISqlProvider =
+and ISqlProvider =
     /// return a new, unopened connection using the provided connection string
     abstract CreateConnection : string -> IDbConnection
     /// return a new command associated with the provided connection and command text
@@ -622,7 +622,7 @@ and internal ISqlProvider =
     ///Provider specific lock to do provider specific locking
     abstract GetLockObject : unit -> obj
 
-and internal SchemaCache =
+and SchemaCache =
     { PrimaryKeys   : ConcurrentDictionary<string,string list>
       Tables        : ConcurrentDictionary<string,Table>
       Columns       : ConcurrentDictionary<string,ColumnLookup>

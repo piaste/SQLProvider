@@ -1,0 +1,8 @@
+FSharp.Core
+System.Data.SqlClient
+
+group SourceFiles
+
+    File: ProvidedTypes.fsi
+    File: ProvidedTypes.fs
+    File: ExpressionOptimizer.fs

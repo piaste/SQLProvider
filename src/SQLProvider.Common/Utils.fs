@@ -3,7 +3,7 @@
 open System
 open System.Collections.Generic
 
-module internal Utilities = 
+module Utilities = 
     
     open System.IO
     open System.Collections.Concurrent

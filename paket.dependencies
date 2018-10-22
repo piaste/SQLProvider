@@ -13,17 +13,8 @@ nuget System.Data.SqlClient
 group Standard
     source https://nuget.org/api/v2
 
-    nuget FSharp.Core
-    nuget System.Runtime
-    nuget System.Runtime.Loader
-    nuget System.Runtime.Serialization.Primitives
     nuget System.Runtime.Serialization.Formatters
-    nuget System.IO
-    nuget System.Console
-    nuget System.Reflection
-    nuget System.Reflection.TypeExtensions
     nuget System.Data.SqlClient
-    nuget System.Data.Common
 	nuget Microsoft.Data.SQLite
 	nuget FSharp.Compiler.Service
 
@@ -35,6 +26,11 @@ group SourceFiles
     github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fsi
     github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fs
     github Thorium/Linq.Expression.Optimizer src/Code/ExpressionOptimizer.fs
+
+group Providers
+    source https://nuget.org/api/v2
+
+    nuget Npgsql
 
 group Scripts
     source https://nuget.org/api/v2
