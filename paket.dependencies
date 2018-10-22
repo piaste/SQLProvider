@@ -1,9 +1,10 @@
 source https://nuget.org/api/v2
+framework >= netstandard20
 
 nuget Nuget.CommandLine
 nuget FAKE
 nuget FSharp.Formatting >= 3.0.0-beta01
-nuget FSharp.Core >= 3.1.2.5 lowest_matching:true, redirects:force
+nuget FSharp.Core redirects:force
 nuget RazorEngine
 nuget NUnit = 2.6.4
 nuget NUnit.Runners = 2.6.4
@@ -12,6 +13,7 @@ nuget System.Data.SqlClient
 
 group Standard
     source https://nuget.org/api/v2
+    framework >= netstandard20
 
     nuget System.Runtime.Serialization.Formatters
     nuget System.Data.SqlClient
@@ -22,6 +24,7 @@ github fsharp/FAKE modules/Octokit/Octokit.fsx
 
 group SourceFiles
     source https://nuget.org/api/v2
+    framework >= netstandard20
 
     github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fsi
     github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fs
@@ -29,6 +32,7 @@ group SourceFiles
 
 group Providers
     source https://nuget.org/api/v2
+    framework >= netstandard20
 
     nuget Npgsql
     nuget Npgsql.Json.NET
@@ -36,6 +40,7 @@ group Providers
 
 group Scripts
     source https://nuget.org/api/v2
+    framework >= netstandard20
 
     nuget MySql.Data < 7.0.0
     nuget MySqlConnector
