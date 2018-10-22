@@ -1,5 +1,0 @@
-group Standard
-FSharp.Core
-System.Runtime.Loader
-System.Runtime.Serialization.Formatters
-System.Data.SqlClient

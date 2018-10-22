@@ -25,4 +25,8 @@ description
     Type providers for SQL database access.
 include-pdbs
     true
+include-referenced-projects 
+    true
+excludeddependencies
+    SqlProvider.PostgreSQL
 
