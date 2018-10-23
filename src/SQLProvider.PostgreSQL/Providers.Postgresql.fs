@@ -901,7 +901,7 @@ type PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAsse
                                         | FSharp.Data.Sql.IsNull -> sprintf "%s IS NULL" column
                                         | FSharp.Data.Sql.NotNull -> sprintf "%s IS NOT NULL" column
                                         | FSharp.Data.Sql.In ->
-                                            let text = String.Join(",",paras |> Array.map (fun p -> p.ParameterName))
+                                            let text = paras |> Array.map (fun p -> p.ParameterName) |> String.concat ","
                                             Array.iter parameters.Add paras
                                             sprintf "%s IN (%s)" column text
                                         | FSharp.Data.Sql.NestedIn ->

@@ -7,6 +7,9 @@ nuget FSharp.Compiler.Service
 nuget Microsoft.SourceLink.GitHub
 nuget System.Runtime.Serialization.Formatters
 
+nuget Npgsql
+nuget Npgsql.Json.NET
+nuget Npgsql.LegacyPostGIS    
 nuget System.Data.SqlClient
 nuget Microsoft.Data.SQLite
 
@@ -17,15 +20,6 @@ group SourceFiles
     github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fsi
     github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fs
     github Thorium/Linq.Expression.Optimizer src/Code/ExpressionOptimizer.fs
-
-group Providers
-    source https://nuget.org/api/v2
-    framework >= netstandard20
-    storage none
-
-    nuget Npgsql
-    nuget Npgsql.Json.NET
-    nuget Npgsql.LegacyPostGIS    
 
 group Build
     source https://nuget.org/api/v2

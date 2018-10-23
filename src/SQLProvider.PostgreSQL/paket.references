@@ -1,7 +1,6 @@
 FSharp.Core
 Microsoft.SourceLink.GitHub
 
-group Providers
-   Npgsql
-   Npgsql.Json.NET
-   Npgsql.LegacyPostGIS
+Npgsql
+Npgsql.Json.NET
+Npgsql.LegacyPostGIS
