@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-  <Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- Can build: -->
     <!-- <TargetFrameworks>net461;netcoreapp2.0;netstandard2.0</TargetFrameworks> -->
@@ -13,9 +13,10 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <ItemGroup>
-<Compile Include="QueryTests.fs" />
+    <Compile Include="QueryTests.fs" />
     <Compile Include="CrudTests.fs" />
     <Compile Include="PostgreSQLTests.fs" />
     <Compile Include="SqlServerTests.fs" />
@@ -43,7 +44,8 @@
     <ProjectReference Include="../../src/SQLProvider.Odbc/SqlProvider.Odbc.fsproj" />
     <ProjectReference Include="../../src/SQLProvider.PostgreSQL/SqlProvider.PostgreSQL.fsproj" />
     <ProjectReference Include="../../src/SQLProvider.SQLServer/SqlProvider.SQLServer.fsproj" />
-    <ProjectReference Include="../../src/SQLProvider/SqlProvider.fsproj" />
+    <ProjectReference Include="../../src/SQLProvider.Runtime/SqlProvider.Runtime.fsproj" />
+    <ProjectReference Include="../../src/SQLProvider.DesignTime/SqlProvider.DesignTime.fsproj" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

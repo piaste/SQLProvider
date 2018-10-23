@@ -1,8 +1,11 @@
 source https://nuget.org/api/v2
-framework >= netstandard20
+frameworks net461, netcoreapp2.0, netstandard2.0
 storage none
 
-nuget FSharp.Core redirects:force
+nuget FSharp.Core
+
+nuget NETStandard.Library.NETFramework
+
 nuget FSharp.Compiler.Service
 nuget Microsoft.SourceLink.GitHub
 nuget System.Runtime.Serialization.Formatters
@@ -45,7 +48,7 @@ group Build
 
 group Scripts
     source https://nuget.org/api/v2
-    framework >= netstandard20
+    frameworks: net461, netcoreapp2.0
 
     nuget MySql.Data < 7.0.0
     nuget MySqlConnector
