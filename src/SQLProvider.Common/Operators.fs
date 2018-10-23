@@ -160,8 +160,6 @@ module Operators =
 #if NETSTANDARD
 // Hacks for .NET Core.
 namespace FSharp.Data.Sql.Providers
-type internal MSAccessProvider() = 
-    member __.Note = "Not Supported in .NET core"
-type internal OdbcProvider(quotehcar) =
+type OdbcProvider(quotehcar) =
     member __.Note = "Not Supported in .NET core"
 #endif

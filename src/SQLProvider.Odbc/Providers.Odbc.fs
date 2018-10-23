@@ -188,16 +188,16 @@ type internal OdbcProvider(contextSchemaPath, quotechar : OdbcQuoteCharacter) =
         member __.GetTableDescription(con,tableName) = 
             let t = tableName.Substring(tableName.LastIndexOf(".")+1) 
             let desc = 
-                (con:?>OdbcConnection).GetSchema("Tables",[|null;null;t.Replace("\"", "")|]).AsEnumerable() 
-                |> Seq.map(fun row ->
-                    try 
-                        let remarks = row.["REMARKS"].ToString()
-                        let endpos = remarks.IndexOf('\000')
-                        if endpos = -1 then remarks else remarks.Substring(0, endpos-1) 
-                    with :? KeyNotFoundException -> 
-                    try row.["DESCRIPTION"].ToString() with :? KeyNotFoundException -> 
-                    try row.["COMMENTS"].ToString() with :? KeyNotFoundException -> ""
-                ) |> Seq.toList
+                [ for row in (con:?>OdbcConnection).GetSchema("Tables",[|null;null;t.Replace("\"", "")|]).Rows do 
+                    yield 
+                      try 
+                          let remarks = row.["REMARKS"].ToString()
+                          let endpos = remarks.IndexOf('\000')
+                          if endpos = -1 then remarks else remarks.Substring(0, endpos-1) 
+                      with :? KeyNotFoundException -> 
+                      try row.["DESCRIPTION"].ToString() with :? KeyNotFoundException -> 
+                      try row.["COMMENTS"].ToString() with :? KeyNotFoundException -> ""
+                ]
             match desc with
             | [x] -> x
             | _ -> ""
@@ -205,16 +205,16 @@ type internal OdbcProvider(contextSchemaPath, quotechar : OdbcQuoteCharacter) =
         member __.GetColumnDescription(con,tableName,columnName) = 
             let t = tableName.Substring(tableName.LastIndexOf(".")+1) 
             let desc = 
-                (con:?>OdbcConnection).GetSchema("Columns",[|null;null;t.Replace("\"", "");columnName|]).AsEnumerable() 
-                |> Seq.map(fun row ->
-                    try 
-                        let remarks = row.["REMARKS"].ToString()
-                        let endpos = remarks.IndexOf('\000')
-                        if endpos = -1 then remarks else remarks.Substring(0, endpos-1) 
-                    with :? KeyNotFoundException -> 
-                    try row.["DESCRIPTION"].ToString() with :? KeyNotFoundException -> 
-                    try row.["COMMENTS"].ToString() with :? KeyNotFoundException -> ""
-                ) |> Seq.toList
+                [ for row in (con:?>OdbcConnection).GetSchema("Columns",[|null;null;t.Replace("\"", "");columnName|]).Rows do 
+                    yield 
+                      try 
+                          let remarks = row.["REMARKS"].ToString()
+                          let endpos = remarks.IndexOf('\000')
+                          if endpos = -1 then remarks else remarks.Substring(0, endpos-1) 
+                      with :? KeyNotFoundException -> 
+                      try row.["DESCRIPTION"].ToString() with :? KeyNotFoundException -> 
+                      try row.["COMMENTS"].ToString() with :? KeyNotFoundException -> ""
+                ]
             match desc with
             | [x] -> x
             | _ -> ""

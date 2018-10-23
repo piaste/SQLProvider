@@ -325,7 +325,7 @@ type internal MSSQLPagingCompatibility =
   // SQL SERVER versions prior to 2012
   | RowNumber = 1
 
-type internal MSSqlServerProvider(contextSchemaPath, tableNames:string) =
+type MSSqlServerProvider(contextSchemaPath, tableNames:string) =
     let schemaCache = SchemaCache.LoadOrEmpty(contextSchemaPath)
     let myLock = new Object()
     

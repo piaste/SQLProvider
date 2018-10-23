@@ -12,6 +12,7 @@ nuget Npgsql.Json.NET
 nuget Npgsql.LegacyPostGIS    
 nuget System.Data.SqlClient
 nuget Microsoft.Data.SQLite
+nuget System.Data.Odbc
 
 nuget NUnit
 

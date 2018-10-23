@@ -142,6 +142,7 @@ NUGET
       System.Threading (>= 4.3) - restriction: || (&& (< monoandroid) (< net45) (>= netstandard2.0) (< win8) (< wpa81) (< xamarinios)) (&& (>= netstandard2.0) (< portable-net45+win8+wpa81))
       System.Threading.Tasks (>= 4.3) - restriction: || (&& (< monoandroid) (< net45) (< netstandard1.3) (>= netstandard2.0) (< win8) (< wpa81)) (&& (< monoandroid) (< net45) (>= netstandard2.0) (< win8) (< wpa81) (< xamarinios)) (&& (>= netstandard2.0) (< portable-net45+win8+wpa81))
     System.Collections.Immutable (1.5)
+    System.Data.Odbc (4.5)
     System.Data.SqlClient (4.5.1)
       Microsoft.Win32.Registry (>= 4.5) - restriction: || (&& (< net451) (>= netstandard2.0) (< xamarinios)) (>= netcoreapp2.0)
       runtime.native.System.Data.SqlClient.sni (>= 4.4) - restriction: || (&& (< net451) (>= netstandard2.0) (< xamarinios)) (>= netcoreapp2.0)

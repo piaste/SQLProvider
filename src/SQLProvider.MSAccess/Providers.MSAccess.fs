@@ -4,14 +4,15 @@ open System
 open System.Collections.Concurrent
 open System.Collections.Generic
 open System.Data
-open System.Data.OleDb
+open System.Data.Odbc
 open System.IO
 
 open FSharp.Data.Sql
 open FSharp.Data.Sql.Schema
 open FSharp.Data.Sql.Common
+open System.Linq
 
-type internal MSAccessProvider(contextSchemaPath) =
+type MSAccessProvider(contextSchemaPath) =
     let schemaCache = SchemaCache.LoadOrEmpty(contextSchemaPath)
     let myLock = new Object()
 
@@ -27,13 +28,13 @@ type internal MSAccessProvider(contextSchemaPath) =
             | false -> sprintf "[%s_%s]" al
         Utilities.genericAliasNotation aliasSprint col
 
-    let createTypeMappings (con:OleDbConnection) =
+    let createTypeMappings (con:OdbcConnection) =
         if con.State <> ConnectionState.Open then con.Open()
         let dt = con.GetSchema("DataTypes")
 
         let getDbType(providerType:int) =
-            let p = new OleDbParameter()
-            p.OleDbType <- (Enum.ToObject(typeof<OleDbType>, providerType) :?> OleDbType)
+            let p = new OdbcParameter()
+            p.OdbcType <- (Enum.ToObject(typeof<OdbcType>, providerType) :?> OdbcType)
             p.DbType
 
         let getClrType (input:string) = Type.GetType(input).ToString()
@@ -41,10 +42,10 @@ type internal MSAccessProvider(contextSchemaPath) =
             [
                 for r in dt.Rows do
                     let clrType = getClrType (string r.["DataType"])
-                    let oleDbType = string r.["NativeDataType"]
+                    let OdbcType = string r.["NativeDataType"]
                     let providerType = unbox<int> r.["ProviderDbType"]
                     let dbType = getDbType providerType
-                    yield { ProviderTypeName = Some oleDbType; ClrType = clrType; DbType = dbType; ProviderType = Some providerType; }
+                    yield { ProviderTypeName = Some OdbcType; ClrType = clrType; DbType = dbType; ProviderType = Some providerType; }
                 yield { ProviderTypeName = Some "cursor"; ClrType = (typeof<SqlEntity[]>).ToString(); DbType = DbType.Object; ProviderType = None; }
             ]
 
@@ -73,14 +74,14 @@ type internal MSAccessProvider(contextSchemaPath) =
     let createInsertCommand (con:IDbConnection) (sb:Text.StringBuilder) (entity:SqlEntity) =
         let (~~) (t:string) = sb.Append t |> ignore
 
-        let cmd = new OleDbCommand()
-        cmd.Connection <- con :?> OleDbConnection
+        let cmd = new OdbcCommand()
+        cmd.Connection <- con :?> OdbcConnection
 
         let columnNames, values =
             (([],0),entity.ColumnValues)
             ||> Seq.fold(fun (out,i) (k,v) ->
                 let name = sprintf "@param%i" i
-                let p = OleDbParameter(name,v)
+                let p = OdbcParameter(name,v)
                 (k,p)::out,i+1)
             |> fun (x,_)-> x
             |> List.rev
@@ -98,8 +99,8 @@ type internal MSAccessProvider(contextSchemaPath) =
 
     let createUpdateCommand (con:IDbConnection) (sb:Text.StringBuilder) (entity:SqlEntity) (changedColumns: string list) =
         let (~~) (t:string) = sb.Append t |> ignore
-        let cmd = new OleDbCommand()
-        cmd.Connection <- con :?> OleDbConnection
+        let cmd = new OdbcCommand()
+        cmd.Connection <- con :?> OdbcConnection
         let pk =
             if not(schemaCache.PrimaryKeys.ContainsKey entity.Table.FullName) then
                 failwith("Can't update entity: Table doesn't have a primary key: " + entity.Table.FullName)
@@ -122,8 +123,8 @@ type internal MSAccessProvider(contextSchemaPath) =
                 let name = sprintf "@param%i" i
                 let p =
                     match entity.GetColumnOption<obj> col with
-                    | Some v -> OleDbParameter(name,v)
-                    | None -> OleDbParameter(name,DBNull.Value)
+                    | Some v -> OdbcParameter(name,v)
+                    | None -> OdbcParameter(name,DBNull.Value)
                 (col,p)::out,i+1)
             |> fun (x,_)-> x
             |> List.rev
@@ -139,7 +140,7 @@ type internal MSAccessProvider(contextSchemaPath) =
 
         cmd.Parameters.AddRange(data |> Array.map snd)
         pkValues |> List.iteri(fun i pkValue ->
-            let pkParam = OleDbParameter(("@pk"+i.ToString()), pkValue)
+            let pkParam = OdbcParameter(("@pk"+i.ToString()), pkValue)
             cmd.Parameters.Add pkParam |> ignore)
 
         cmd.CommandText <- sb.ToString()
@@ -147,8 +148,8 @@ type internal MSAccessProvider(contextSchemaPath) =
 
     let createDeleteCommand (con:IDbConnection) (sb:Text.StringBuilder) (entity:SqlEntity) =
         let (~~) (t:string) = sb.Append t |> ignore
-        let cmd = new OleDbCommand()
-        cmd.Connection <- con :?> OleDbConnection
+        let cmd = new OdbcCommand()
+        cmd.Connection <- con :?> OdbcConnection
         sb.Clear() |> ignore
         let haspk = schemaCache.PrimaryKeys.ContainsKey(entity.Table.FullName)
         let pk = if haspk then schemaCache.PrimaryKeys.[entity.Table.FullName] else []
@@ -175,8 +176,8 @@ type internal MSAccessProvider(contextSchemaPath) =
         member __.GetTableDescription(con,tableName) = 
             let t = tableName.Substring(tableName.LastIndexOf(".")+1) 
             let desc = 
-                (con:?>OleDbConnection).GetSchema("Tables",[|null;null;t.Replace("\"", "")|]).AsEnumerable() 
-                |> Seq.map(fun row ->row.["DESCRIPTION"].ToString()) |> Seq.toList
+                [ for row in (con:?>OdbcConnection).GetSchema("Tables",[|null;null;t.Replace("\"", "")|]).Rows do
+                    yield row.["DESCRIPTION"].ToString() ]
             match desc with
             | [x] -> x
             | _ -> ""
@@ -184,22 +185,21 @@ type internal MSAccessProvider(contextSchemaPath) =
         member __.GetColumnDescription(con,tableName,columnName) = 
             let t = tableName.Substring(tableName.LastIndexOf(".")+1) 
             let desc = 
-                (con:?>OleDbConnection).GetSchema("Columns",[|null;null;t.Replace("\"", "");columnName|]).AsEnumerable() 
-                |> Seq.map(fun row ->row.["DESCRIPTION"].ToString())
-                |> Seq.toList
+                [ for row in (con:?>OdbcConnection).GetSchema("Columns",[|null;null;t.Replace("\"", "");columnName|]).Rows do
+                    yield row.["DESCRIPTION"].ToString() ]
             match desc with
             | [x] -> x
             | _ -> ""
 
         member __.CreateConnection(connectionString) = 
             // Access connections shouldn't ever be closed as that leads to Unspecified Error.
-            let con = new OleDbConnection(connectionString)
+            let con = new OdbcConnection(connectionString)
             upcast con
 
-        member __.CreateCommand(connection,commandText) = upcast new OleDbCommand(commandText,connection:?>OleDbConnection)
+        member __.CreateCommand(connection,commandText) = upcast new OdbcCommand(commandText,connection:?>OdbcConnection)
 
         member __.CreateCommandParameter(param, value) =
-            let p = OleDbParameter(param.Name,value)
+            let p = OdbcParameter(param.Name,value)
             p.DbType <- param.TypeMapping.DbType
             p.Direction <- param.Direction
             Option.iter (fun l -> p.Size <- l) param.Length
@@ -207,19 +207,22 @@ type internal MSAccessProvider(contextSchemaPath) =
 
         member __.ExecuteSprocCommand(_,_,_,_) =  raise(NotImplementedException())
         member __.ExecuteSprocCommandAsync(_,_,_,_) =  raise(NotImplementedException())
-        member __.CreateTypeMappings(con) = createTypeMappings (con:?>OleDbConnection)
+        member __.CreateTypeMappings(con) = createTypeMappings (con:?>OdbcConnection)
         member __.GetSchemaCache() = schemaCache
 
         member __.GetTables(con,_) =
             if con.State <> ConnectionState.Open then con.Open()
-            let con = con:?>OleDbConnection
+            let con = con:?>OdbcConnection
             let tables =
-                con.GetSchema("Tables").AsEnumerable()
-                |> Seq.filter (fun row -> ["TABLE";"VIEW";"LINK"] |> List.exists (fun typ -> typ = row.["TABLE_TYPE"].ToString())) // = "TABLE" || row.["TABLE_TYPE"].ToString() = "VIEW" || row.["TABLE_TYPE"].ToString() = "LINK")  //The text file specification 'A Link Specification' does not exist. You cannot import, export, or link using the specification.
-                |> Seq.map (fun row -> let table ={ Schema = Path.GetFileNameWithoutExtension(con.DataSource); Name = row.["TABLE_NAME"].ToString() ; Type=row.["TABLE_TYPE"].ToString() }
-                                       schemaCache.Tables.GetOrAdd(table.FullName,table)
-                                       )
-                |> List.ofSeq
+                [ for row in con.GetSchema("Tables").Rows do 
+                    if ["TABLE";"VIEW";"LINK"] |> List.exists (fun typ -> typ = row.["TABLE_TYPE"].ToString()) then
+                    // = "TABLE" || row.["TABLE_TYPE"].ToString() = "VIEW" || row.["TABLE_TYPE"].ToString() = "LINK")  
+                    //The text file specification 'A Link Specification' does not exist. You cannot import, export, or link using the specification.
+                      let table = { Schema = Path.GetFileNameWithoutExtension(con.DataSource)
+                                    Name = row.["TABLE_NAME"].ToString()
+                                    Type=row.["TABLE_TYPE"].ToString() }
+                      yield schemaCache.Tables.GetOrAdd(table.FullName,table)                                       
+                ]
             tables
 
         member __.GetPrimaryKey(table) =
@@ -233,35 +236,36 @@ type internal MSAccessProvider(contextSchemaPath) =
             | _ ->
                 if con.State <> ConnectionState.Open then con.Open()
                 let pks =
-                    (con:?>OleDbConnection).GetSchema("Indexes",[|null;null;null;null;table.Name.Replace("\"", "")|]).AsEnumerable()
-                    |> Seq.filter (fun idx ->  bool.Parse(idx.["PRIMARY_KEY"].ToString()))
-                    |> Seq.map (fun idx -> idx.["COLUMN_NAME"].ToString())
-                    |> Seq.toList
+                    [ for idx in (con:?>OdbcConnection).GetSchema("Indexes",[|null;null;null;null;table.Name.Replace("\"", "")|]).Rows do 
+                        if bool.Parse(idx.["PRIMARY_KEY"].ToString()) then
+                          yield idx.["COLUMN_NAME"].ToString()
+                    ]
 
                 let columns =
-                    (con:?>OleDbConnection).GetSchema("Columns",[|null;null;table.Name.Replace("\"", "");null|]).AsEnumerable()
-                    |> Seq.map (fun row ->
+                    seq {
+                      for row in (con:?>OdbcConnection).GetSchema("Columns",[|null;null;table.Name.Replace("\"", "");null|]).Rows do
                         match row.["DATA_TYPE"].ToString() |> findDbType with
-                        |Some(m) ->
-                            let pkColumn = pks |> List.exists (fun idx -> idx = row.["COLUMN_NAME"].ToString())
-                            let col =
-                                { Column.Name = row.["COLUMN_NAME"].ToString();
-                                  TypeMapping = m
-                                  IsPrimaryKey = pkColumn
-                                  IsNullable = bool.Parse(row.["IS_NULLABLE"].ToString())
-                                  IsAutonumber = row.["DATA_TYPE"].ToString() = "AutoNumber"
-                                  HasDefault = not (row.IsNull "COLUMN_DEFAULT");
-                                  TypeInfo = 
-                                    try 
-                                        let ti = 
-                                            if row.IsNull("CHARACTER_MAXIMUM_LENGTH") then ""
-                                            else row.["CHARACTER_MAXIMUM_LENGTH"].ToString()
-                                        if String.IsNullOrEmpty ti then None
-                                        else Some ("Max length: " + ti)
-                                    with :? KeyNotFoundException -> None
-                                }
-                            (col.Name,col)
-                        |_ -> failwith "failed to map datatypes")
+                        | Some(m) ->
+                             let pkColumn = pks |> List.exists (fun idx -> idx = row.["COLUMN_NAME"].ToString())
+                             let col =
+                                 { Column.Name = row.["COLUMN_NAME"].ToString();
+                                   TypeMapping = m
+                                   IsPrimaryKey = pkColumn
+                                   IsNullable = bool.Parse(row.["IS_NULLABLE"].ToString())
+                                   IsAutonumber = row.["DATA_TYPE"].ToString() = "AutoNumber"
+                                   HasDefault = not (row.IsNull "COLUMN_DEFAULT");
+                                   TypeInfo = 
+                                     try 
+                                         let ti = 
+                                             if row.IsNull("CHARACTER_MAXIMUM_LENGTH") then ""
+                                             else row.["CHARACTER_MAXIMUM_LENGTH"].ToString()
+                                         if String.IsNullOrEmpty ti then None
+                                         else Some ("Max length: " + ti)
+                                     with :? KeyNotFoundException -> None
+                                 }
+                             yield (col.Name,col)
+                        |_ -> failwith "failed to map datatypes"
+                    }
                     |> Map.ofSeq
 
                 // only add to PK lookup if it's a single pk - no support for composite keys yet
@@ -277,7 +281,9 @@ type internal MSAccessProvider(contextSchemaPath) =
           schemaCache.Relationships.GetOrAdd(table.FullName, fun name ->
             if con.State <> ConnectionState.Open then con.Open()
             let rels =
-                (con:?>OleDbConnection).GetOleDbSchemaTable(OleDbSchemaGuid.Foreign_Keys,[|null|]).AsEnumerable()
+              // TODO: does MSAccess support the ForeignKeys ODBC collection?
+                seq { for r in (con:?>OdbcConnection).GetSchema("ForeignKeys",[|null|]).Rows -> r }
+
             let children = rels |> Seq.filter (fun r -> r.["PK_TABLE_NAME"].ToString() = table.Name)
                                 |> Seq.map    (fun r -> let pktableName = table.FullName
                                                         let fktableName = sprintf "[%s].[%s]" table.Schema  (r.["FK_TABLE_NAME"].ToString())
@@ -310,7 +316,7 @@ type internal MSAccessProvider(contextSchemaPath) =
                 let valu = match value with
                             | :? DateTime as dt -> dt.ToOADate() |> box
                             | _           -> value
-                OleDbParameter(paramName,valu):> IDbDataParameter
+                OdbcParameter(paramName,valu):> IDbDataParameter
 
             let fieldParam (value:obj) =
                 let p = createParam value
@@ -642,7 +648,7 @@ type internal MSAccessProvider(contextSchemaPath) =
                         match e._State with
                         | Created ->
                             let cmd = createInsertCommand con sb e
-                            cmd.Transaction <- trnsx :?> OleDbTransaction
+                            cmd.Transaction <- trnsx :?> OdbcTransaction
                             Common.QueryEvents.PublishSqlQueryCol con.ConnectionString cmd.CommandText cmd.Parameters
                             if timeout.IsSome then
                                 cmd.CommandTimeout <- timeout.Value
@@ -651,7 +657,7 @@ type internal MSAccessProvider(contextSchemaPath) =
                             e._State <- Unchanged
                         | Modified fields ->
                             let cmd = createUpdateCommand con sb e fields
-                            cmd.Transaction <- trnsx :?> OleDbTransaction
+                            cmd.Transaction <- trnsx :?> OdbcTransaction
                             Common.QueryEvents.PublishSqlQueryCol con.ConnectionString cmd.CommandText cmd.Parameters
                             if timeout.IsSome then
                                 cmd.CommandTimeout <- timeout.Value
@@ -659,7 +665,7 @@ type internal MSAccessProvider(contextSchemaPath) =
                             e._State <- Unchanged
                         | Delete ->
                             let cmd = createDeleteCommand con sb e
-                            cmd.Transaction <- trnsx :?> OleDbTransaction
+                            cmd.Transaction <- trnsx :?> OdbcTransaction
                             Common.QueryEvents.PublishSqlQueryCol con.ConnectionString cmd.CommandText cmd.Parameters
                             if timeout.IsSome then
                                 cmd.CommandTimeout <- timeout.Value
@@ -701,7 +707,7 @@ type internal MSAccessProvider(contextSchemaPath) =
                             | Created ->
                                 async {
                                     let cmd = createInsertCommand con sb e
-                                    cmd.Transaction <- trnsx :?> OleDbTransaction
+                                    cmd.Transaction <- trnsx :?> OdbcTransaction
                                     Common.QueryEvents.PublishSqlQueryCol con.ConnectionString cmd.CommandText cmd.Parameters
                                     if timeout.IsSome then
                                         cmd.CommandTimeout <- timeout.Value
@@ -712,7 +718,7 @@ type internal MSAccessProvider(contextSchemaPath) =
                             | Modified fields ->
                                 async {
                                     let cmd = createUpdateCommand con sb e fields
-                                    cmd.Transaction <- trnsx :?> OleDbTransaction
+                                    cmd.Transaction <- trnsx :?> OdbcTransaction
                                     Common.QueryEvents.PublishSqlQueryCol con.ConnectionString cmd.CommandText cmd.Parameters
                                     if timeout.IsSome then
                                         cmd.CommandTimeout <- timeout.Value
@@ -722,7 +728,7 @@ type internal MSAccessProvider(contextSchemaPath) =
                             | Delete ->
                                 async {
                                     let cmd = createDeleteCommand con sb e
-                                    cmd.Transaction <- trnsx :?> OleDbTransaction
+                                    cmd.Transaction <- trnsx :?> OdbcTransaction
                                     Common.QueryEvents.PublishSqlQueryCol con.ConnectionString cmd.CommandText cmd.Parameters
                                     if timeout.IsSome then
                                         cmd.CommandTimeout <- timeout.Value
