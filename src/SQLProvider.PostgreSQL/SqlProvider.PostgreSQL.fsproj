@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-  <Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- Can build: -->
     <!-- <TargetFrameworks>net461;netcoreapp2.0;netstandard2.0</TargetFrameworks> -->
@@ -10,6 +10,9 @@
     <OutputPath>..\..\bin</OutputPath>
     <AssemblyName>FSharp.Data.SqlProvider.PostgreSQL</AssemblyName>
     <Name>FSharp.Data.SqlProvider.PostgreSQL</Name>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
   </PropertyGroup>
   <ItemGroup>
     <None Include="paket.references" />
@@ -17,9 +20,8 @@
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Providers.Postgresql.fs" />
   </ItemGroup>
-  <ItemGroup />
   <ItemGroup>
     <ProjectReference Include="..\SQLProvider.Common\SqlProvider.Common.fsproj" />
-  </ItemGroup>  
+  </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

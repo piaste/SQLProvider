@@ -1,27 +1,21 @@
-open Fake.IO
-
 // --------------------------------------------------------------------------------------
 // FAKE build script
 // --------------------------------------------------------------------------------------
 
-#r @"packages/FAKE/tools/FakeLib.dll"
+#r "paket: groupref Build //"
+#load "./.fake/build.fsx/intellisense.fsx"
+
+#if !FAKE
+  #r "netstandard"
+#endif
+
 open Fake.Core
 open Fake.Core.TargetOperators
-open Fake.Git
-open Fake.DotNet
-open Fake.IO.Globbing.Operators
-open Fake.IO.FileSystemOperators
 open Fake.Tools
+open Fake.DotNet
+open Fake.IO
+open Fake.IO.Globbing.Operators
 open System
-open System.IO
-open SourceLink.Fake
-
-// #if MONO
-// #else
-// #load @"packages/SourceLink.Fake/tools/SourceLink.fsx"
-// #endif
-
-#r @"packages/scripts/Npgsql/lib/net451/Npgsql.dll"
 
 // --------------------------------------------------------------------------------------
 // START TODO: Provide project-specific details below
@@ -71,7 +65,7 @@ let gitRaw = Environment.environVarOrDefault "gitRaw" "https://raw.github.com/fs
 // --------------------------------------------------------------------------------------
 // Read additional information from the release notes document
 Environment.CurrentDirectory <- __SOURCE_DIRECTORY__
-let release = ReleaseNotes.parse (IO.File.ReadAllLines "RELEASE_NOTES.md")
+let release = ReleaseNotes.load "RELEASE_NOTES.md"
 
 // Generate assembly info files with the right version & up-to-date information
 Target.create "AssemblyInfo" (fun _ ->
@@ -89,14 +83,13 @@ Target.create "AssemblyInfo" (fun _ ->
 // --------------------------------------------------------------------------------------
 // Clean build results & restore NuGet packages
 
-Target.create "RestorePackages" (fun _ -> NuGet.Restore.RestorePackages() )
 
 Target.create "Clean" (fun _ ->
-    ["bin"; "temp"] |> List.iter Directory.Delete
+    ["bin"; "temp"] |> List.iter Directory.delete
 )
 
 Target.create "CleanDocs" (fun _ ->
-    ["docs/output"] |> List.iter Directory.Delete
+    ["docs/output"] |> List.iter Directory.delete
 )
 
 // --------------------------------------------------------------------------------------
@@ -130,8 +123,8 @@ Target.create "SetupPostgreSQL" (fun _ ->
       connBuilder.Username <- "postgres"
       connBuilder.Password <- 
         match BuildServer.buildServer with
-        | Travis -> ""
-        | AppVeyor -> "Password12!"
+        | Fake.Core.BuildServer.Travis -> ""
+        | Fake.Core.BuildServer.AppVeyor -> "Password12!"
         | _ -> "postgres"      
   
       let runCmd query = 
@@ -249,24 +242,12 @@ Target.create "PackNuGet" (fun _ ->
 // Generate the documentation
 
 Target.create "GenerateReferenceDocs" (fun _ ->
-    if not <| Fake.FSIHelper.executeFSIWithArgs "docs/tools" "generate.fsx" ["--define:RELEASE"; "--define:REFERENCE"] [] then
-      failwith "generating reference documentation failed"
+    FSFormatting.createDocsForDlls id [ 
+      "FSharp.Data.SqlProvider.dll" 
+      "FSharp.Data.SqlProvider.Common.dll" 
+      "FSharp.Data.SqlProvider.PostgreSQL.dll" 
+    ]
 )
-
-let generateHelp' fail debug =
-    let args =
-        [ if not debug then yield "--define:RELEASE"
-          yield "--define:HELP" ]
-    if Fake.FSIHelper.executeFSIWithArgs "docs/tools" "generate.fsx" args [] then
-         Trace.traceImportant "Help generated"
-    else
-        if fail then
-            failwith "generating help documentation failed"
-        else
-            Trace.traceImportant "generating help documentation failed"
-
-let generateHelp fail =
-    generateHelp' fail false
 
 Target.create "GenerateHelp" (fun _ ->
     File.delete "docs/content/release-notes.md"
@@ -280,47 +261,28 @@ Target.create "GenerateHelp" (fun _ ->
     Shell.copyFile "bin/net451" "packages/FSharp.Core/lib/net40/FSharp.Core.sigdata"
     Shell.copyFile "bin/net451" "packages/FSharp.Core/lib/net40/FSharp.Core.optdata"
 
-    generateHelp true
+    FSFormatting.createDocs (fun p ->
+      
+      // Web site location for the generated documentation
+      let website = "/SQLProvider"
+
+      let githubLink = "http://github.com/fsprojects/SQLProvider"
+      { p with
+          Source = "docs/"
+          OutputDirectory = "docs/content"
+
+      // Specify more information about your project
+          ProjectParameters =
+            [ "project-name", "SQLProvider"
+              "project-author", "Ross McKinlay, Colin Bull, Tuomas Hietanen"
+              "project-summary", "Type providers for SQL server access."
+              "project-github", "http://github.com/fsprojects/SQLProvider"
+              "project-nuget", "http://nuget.org/packages/SQLProvider" 
+            ]
+      }
+    )
 )
 
-Target.create "GenerateHelpDebug" (fun _ ->
-    File.delete "docs/content/release-notes.md"
-    Shell.copyFile "docs/content/" "RELEASE_NOTES.md"
-    Shell.rename "docs/content/release-notes.md" "docs/content/RELEASE_NOTES.md"
-
-    File.delete "docs/content/license.md"
-    Shell.copyFile "docs/content/" "LICENSE.txt"
-    Shell.rename "docs/content/license.md" "docs/content/LICENSE.txt"
-
-    generateHelp' true true
-)
-
-Target.create "KeepRunning" (fun _ ->    
-    use watcher = new FileSystemWatcher(DirectoryInfo("docs/content").FullName,"*.*")
-    watcher.EnableRaisingEvents <- true
-    watcher.Changed.Add(fun e -> generateHelp false)
-    watcher.Created.Add(fun e -> generateHelp false)
-    watcher.Renamed.Add(fun e -> generateHelp false)
-    watcher.Deleted.Add(fun e -> generateHelp false)
-
-    Trace.traceImportant "Waiting for help edits. Press any key to stop."
-
-    System.Console.ReadKey() |> ignore
-
-    watcher.EnableRaisingEvents <- false
-    watcher.Dispose()
-)
-
-Target.create "GenerateDocs" ignore
-
-open SourceLink
-Target.create "SourceLink" <| fun () ->
-    let baseUrl = sprintf "%s/%s/{0}/%%var2%%" gitRaw project
-    !! "src/*.fsproj"
-    |> Seq.iter (fun file ->
-        let proj = VsProj.LoadRelease file
-        SourceLink.Index proj.CompilesNotLinked proj.OutputFilePdb __SOURCE_DIRECTORY__ baseUrl
-       )
 
 // --------------------------------------------------------------------------------------
 // Release Scripts
@@ -352,21 +314,23 @@ Target.create "BuildDocs" ignore
   // In CI mode, we setup a Postgres database before building
   =?> ("SetupPostgreSQL", not BuildServer.isLocalBuild)
   // On AppVeyor, we also add a SQL Server 2008R2 one and a SQL Server 2017 for compatibility
-  =?> ("SetupMSSQL2008R2", BuildServer.buildServer = AppVeyor)
-  =?> ("SetupMSSQL2017", BuildServer.buildServer = AppVeyor)
+  =?> ("SetupMSSQL2008R2", BuildServer.buildServer = Fake.Core.BuildServer.AppVeyor)
+  =?> ("SetupMSSQL2017", BuildServer.buildServer = Fake.Core.BuildServer.AppVeyor)
   ==> "Build"
   ==> "RunTests"
   ==> "CleanDocs"
   // Travis doesn't support mono+dotnet:
-  ==> "GenerateReferenceDocs"
-  ==> "GenerateHelp"
+  //==> "GenerateReferenceDocs"
+  //==> "GenerateHelp"
   ==> "All"
+
+//"GenerateReferenceDocs"
+//  ==> "GenerateHelpDebug"
 
 "All"
   ==> "BuildDocs"
 
 "All" 
-  =?> ("SourceLink", Pdbstr.tryFind().IsSome )
   ==> "ReleaseDocs"
   ==> "Release"
 

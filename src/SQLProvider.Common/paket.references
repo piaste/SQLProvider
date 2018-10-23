@@ -1,5 +1,6 @@
 FSharp.Core
 System.Data.SqlClient
+Microsoft.SourceLink.GitHub
 
 group SourceFiles
 

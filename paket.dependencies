@@ -1,30 +1,18 @@
 source https://nuget.org/api/v2
 framework >= netstandard20
+storage none
 
-nuget Nuget.CommandLine
-nuget FAKE
-nuget FSharp.Formatting >= 3.0.0-beta01
 nuget FSharp.Core redirects:force
-nuget RazorEngine
-nuget NUnit = 2.6.4
-nuget NUnit.Runners = 2.6.4
-nuget SourceLink.Fake
+nuget FSharp.Compiler.Service
+nuget Microsoft.SourceLink.GitHub
+nuget System.Runtime.Serialization.Formatters
+
 nuget System.Data.SqlClient
+nuget Microsoft.Data.SQLite
 
-group Standard
-    source https://nuget.org/api/v2
-    framework >= netstandard20
-
-    nuget System.Runtime.Serialization.Formatters
-    nuget System.Data.SqlClient
-	nuget Microsoft.Data.SQLite
-	nuget FSharp.Compiler.Service
-
-github fsharp/FAKE modules/Octokit/Octokit.fsx
+nuget NUnit
 
 group SourceFiles
-    source https://nuget.org/api/v2
-    framework >= netstandard20
 
     github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fsi
     github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fs
@@ -33,10 +21,32 @@ group SourceFiles
 group Providers
     source https://nuget.org/api/v2
     framework >= netstandard20
+    storage none
 
     nuget Npgsql
     nuget Npgsql.Json.NET
     nuget Npgsql.LegacyPostGIS    
+
+group Build
+    source https://nuget.org/api/v2
+    framework >= netstandard20
+    storage none
+
+    nuget Fake.Core.BuildServer
+    nuget Fake.Core.ReleaseNotes
+    nuget Fake.Core.Target
+    nuget Fake.Core.Trace
+    nuget Fake.DotNet.AssemblyInfoFile
+    nuget Fake.DotNet.Cli
+    nuget Fake.DotNet.FSFormatting
+    nuget Fake.DotNet.Paket
+    nuget Fake.DotNet.Testing.NUnit
+    nuget Fake.IO.FileSystem
+    nuget Fake.Tools.Git
+    nuget System.Data.SqlClient
+    nuget Npgsql 
+
+    clitool dotnet-fake
 
 group Scripts
     source https://nuget.org/api/v2

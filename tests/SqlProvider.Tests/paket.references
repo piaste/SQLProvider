@@ -1,7 +1,7 @@
 NUnit
 FSharp.Core
-Fake
+
 group Scripts
-Oracle.ManagedDataAccess
-Newtonsoft.Json
-Npgsql
+    Oracle.ManagedDataAccess
+    Newtonsoft.Json
+    Npgsql
