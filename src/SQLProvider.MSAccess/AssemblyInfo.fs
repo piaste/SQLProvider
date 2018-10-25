@@ -2,16 +2,17 @@
 namespace System
 open System.Reflection
 
-[<assembly: AssemblyTitleAttribute("SQLProvider.PostgreSQL")>]
-[<assembly: AssemblyProductAttribute("SQLProvider.PostgreSQL")>]
-[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access to PostgreSQL.")>]
-[<assembly: AssemblyVersionAttribute("1.1.52")>]
-[<assembly: AssemblyFileVersionAttribute("1.1.52")>]
+[<assembly: AssemblyTitleAttribute("SQLProvider.MSAccess")>]
+[<assembly: AssemblyProductAttribute("SQLProvider.MSAccess")>]
+[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access to MSAccess.")>]
+
+
+
 do ()
 
 module internal AssemblyVersionInformation =
-    let [<Literal>] AssemblyTitle = "SQLProvider.PostgreSQL"
-    let [<Literal>] AssemblyProduct = "SQLProvider.PostgreSQL"
-    let [<Literal>] AssemblyDescription = "Type providers for SQL database access to PostgreSQL."
-    let [<Literal>] AssemblyVersion = "1.1.52"
-    let [<Literal>] AssemblyFileVersion = "1.1.52"
+    let [<Literal>] AssemblyTitle = "SQLProvider.MSAccess"
+    let [<Literal>] AssemblyProduct = "SQLProvider.MSAccess"
+    let [<Literal>] AssemblyDescription = "Type providers for SQL database access to MSAccess."
+
+

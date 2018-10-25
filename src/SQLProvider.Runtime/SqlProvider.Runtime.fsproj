@@ -13,7 +13,7 @@
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
     <OutputType>Library</OutputType>
-    <TargetFrameworks>netstandard2.0;netcoreapp2.0;net461</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0;netcoreapp2.1;net461</TargetFrameworks>
     <Optimize>true</Optimize>
     <Tailcalls>true</Tailcalls>
     <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
@@ -23,11 +23,8 @@
   <ItemGroup>
     <None Include="paket.references" />
     <None Include="paket.template" />
+    <Compile Include="../SolutionAssemblyInfo.fs" />
     <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="Providers.MySql.fs" />
-    <Compile Include="Providers.Oracle.fs" />
-    <Compile Include="Providers.SQLite.fs" />
-    <Compile Include="Providers.Firebird.fs" />
     <Compile Include="SqlRuntime.QueryExpression.fs" />
     <Compile Include="SqlRuntime.Linq.fs" />
     <Compile Include="SqlRuntime.Async.fs" />
@@ -35,22 +32,30 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SQLProvider.Common\SqlProvider.Common.fsproj" />
+    <ProjectReference Include="..\SQLProvider.Firebird\SqlProvider.Firebird.fsproj" />
     <ProjectReference Include="..\SQLProvider.MSAccess\SqlProvider.MSAccess.fsproj" />
+    <ProjectReference Include="..\SQLProvider.MySQL\SqlProvider.MySQL.fsproj" />
     <ProjectReference Include="..\SQLProvider.Odbc\SqlProvider.Odbc.fsproj" />
+    <ProjectReference Include="..\SQLProvider.Oracle\SqlProvider.Oracle.fsproj" />
     <ProjectReference Include="..\SQLProvider.PostgreSQL\SqlProvider.PostgreSQL.fsproj" />
+    <ProjectReference Include="..\SQLProvider.SQLite\SqlProvider.SQLite.fsproj" />
     <ProjectReference Include="..\SQLProvider.SQLServer\SqlProvider.SQLServer.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Be explicit about the version of FSharp.Core since we mention it in the manual nuget package spec -->
+    <PackageReference Include="FSharp.Core" Version="4.5.2" />
   </ItemGroup>
   <Target Name="BeforeBuild">
     <MSBuild Projects="..\SQLProvider.DesignTime\SQLProvider.DesignTime.fsproj" Targets="Restore" />
-    <MSBuild Projects="..\SQLProvider.DesignTime\SQLProvider.DesignTime.fsproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=netcoreapp2.0" />
+    <MSBuild Projects="..\SQLProvider.DesignTime\SQLProvider.DesignTime.fsproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=netcoreapp2.1" />
     <MSBuild Projects="..\SQLProvider.DesignTime\SQLProvider.DesignTime.fsproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0" />
     <MSBuild Projects="..\SQLProvider.DesignTime\SQLProvider.DesignTime.fsproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=net461" />
   </Target>
   <Target Name="AfterBuild">
-    <CreateItem Include="..\SQLProvider.DesignTime\bin\$(Configuration)\netcoreapp2.0\*.dll;..\SQLProvider.DesignTime\bin\$(Configuration)\netcoreapp2.0\*.pdb">
+    <CreateItem Include="..\SQLProvider.DesignTime\bin\$(Configuration)\netcoreapp2.1\*.dll;..\SQLProvider.DesignTime\bin\$(Configuration)\netcoreapp2.1\*.pdb">
       <Output TaskParameter="Include" ItemName="DesignTimeBinaries1" />
     </CreateItem>
-    <Copy SourceFiles="@(DesignTimeBinaries1)" DestinationFolder="$(OutputPath)/../typeproviders/fsharp41/netcoreapp2.0" />
+    <Copy SourceFiles="@(DesignTimeBinaries1)" DestinationFolder="$(OutputPath)/../typeproviders/fsharp41/netcoreapp2.1" />
     <CreateItem Include="..\SQLProvider.DesignTime\bin\$(Configuration)\net461\*.dll;..\SQLProvider.DesignTime\bin\$(Configuration)\net45\*.pdb">
       <Output TaskParameter="Include" ItemName="DesignTimeBinaries2" />
     </CreateItem>

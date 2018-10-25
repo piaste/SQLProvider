@@ -1,33 +1,57 @@
 source https://nuget.org/api/v2
-frameworks net461, netcoreapp2.0, netstandard2.0
+frameworks net461, netcoreapp2.1, netstandard2.0
 storage none
 
-nuget FSharp.Core
+nuget FSharp.Core 4.5.2
 
 nuget NETStandard.Library.NETFramework
 
+// Common dependencies
 nuget FSharp.Compiler.Service
 nuget Microsoft.SourceLink.GitHub
 nuget System.Runtime.Serialization.Formatters
+nuget System.Data.SqlClient
 
+// Provider dependencies
+// Firebird
+nuget FirebirdSql.Data.FirebirdClient
+
+// MSAccess
+nuget System.Data.Odbc
+
+// MySQL
+nuget MySqlConnector
+
+// ODBC
+nuget System.Data.Odbc
+
+// Oracle
+nuget Oracle.ManagedDataAccess
+
+// PostgreSQL
 nuget Npgsql
 nuget Npgsql.Json.NET
 nuget Npgsql.LegacyPostGIS    
-nuget System.Data.SqlClient
+
+// SQLite
 nuget Microsoft.Data.SQLite
-nuget System.Data.Odbc
+nuget SQLitePCLRaw.bundle_green
 
-nuget NUnit
-
+// Type provider SDK
 group SourceFiles
 
     github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fsi
     github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fs
     github Thorium/Linq.Expression.Optimizer src/Code/ExpressionOptimizer.fs
 
+group Testing
+    source https://nuget.org/api/v2
+    framework >= netcoreapp2.1
+    nuget NUnit
+
 group Build
     source https://nuget.org/api/v2
-    framework >= netstandard20
+    framework >= netcoreapp2.1
     storage none
 
     nuget Fake.Core.BuildServer
@@ -48,7 +72,7 @@ group Build
 
 group Scripts
     source https://nuget.org/api/v2
-    frameworks: net461, netcoreapp2.0
+    framework >= netcoreapp2.1
 
     nuget MySql.Data < 7.0.0
     nuget MySqlConnector

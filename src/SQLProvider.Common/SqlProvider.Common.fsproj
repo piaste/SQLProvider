@@ -2,7 +2,7 @@
   <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- Can build: -->
-    <!-- <TargetFrameworks>net461;netcoreapp2.0;netstandard2.0</TargetFrameworks> -->
+    <!-- <TargetFrameworks>net461;netcoreapp2.1;netstandard2.0</TargetFrameworks> -->
     <!-- Lets use: -->
     <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <DefineConstants>NETSTANDARD;NO_GENERATIVE</DefineConstants>
@@ -29,6 +29,7 @@
       <Paket>True</Paket>
       <Link>paket-files/ExpressionOptimizer.fs</Link>
     </Compile>
+    <Compile Include="../SolutionAssemblyInfo.fs" />
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Operators.fs" />
     <Compile Include="Utils.fs" />

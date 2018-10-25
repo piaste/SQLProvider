@@ -156,10 +156,3 @@ module Operators =
 
     /// Variance
     let Variance (a:'a) = 1m
-
-#if NETSTANDARD
-// Hacks for .NET Core.
-namespace FSharp.Data.Sql.Providers
-type OdbcProvider(quotehcar) =
-    member __.Note = "Not Supported in .NET core"
-#endif

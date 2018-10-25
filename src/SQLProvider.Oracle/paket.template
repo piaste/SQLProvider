@@ -1,0 +1,28 @@
+type project
+id
+    SQLProvider.Oracle
+title
+    SQLProvider for Oracle
+owners
+    "Stefano Pian"
+authors 
+    "Stefano Pian"
+projectUrl
+    http://github.com/fsprojects/SQLProvider
+iconUrl
+    https://pbs.twimg.com/profile_images/1875123880/5641241.gif
+licenseUrl
+    http://github.com/fsprojects/SQLProvider/blob/master/LICENSE.txt
+requireLicenseAcceptance
+    false
+copyright
+    Copyright 2016
+tags
+    F#, fsharp, typeprovider, sql, Oracle
+summary
+    Type providers for SQL database access to Oracle.
+description
+    Type providers for SQL database access to Oracle.
+include-pdbs
+    true
+

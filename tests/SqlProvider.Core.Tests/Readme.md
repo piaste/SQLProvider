@@ -61,7 +61,7 @@ And a post-build target to replace the runtime-file back to .NET Standard versio
 
 ```xml
 <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy %USERPROFILE%\.nuget\packages\SQLProvider\1.1.38\lib\net451\FSharp.Data.SqlProvider.dll bin\Debug\netcoreapp2.0\ /y" />
+    <Exec Command="xcopy %USERPROFILE%\.nuget\packages\SQLProvider\1.1.38\lib\net451\FSharp.Data.SqlProvider.dll bin\Debug\netcoreapp2.1\ /y" />
 </Target>
 ```
 

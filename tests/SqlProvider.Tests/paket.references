@@ -1,5 +1,7 @@
-NUnit
 FSharp.Core
+
+group Testing
+    NUnit
 
 group Scripts
     Oracle.ManagedDataAccess

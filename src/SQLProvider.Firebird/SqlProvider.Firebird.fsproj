@@ -8,8 +8,8 @@
     <DefineConstants>NETSTANDARD;NO_GENERATIVE</DefineConstants>
     <AllowCrossTargeting>true</AllowCrossTargeting>
     <OutputPath>..\..\bin</OutputPath>
-    <AssemblyName>FSharp.Data.SqlProvider.MSAccess</AssemblyName>
-    <Name>FSharp.Data.SqlProvider.MSAccess</Name>
+    <AssemblyName>FSharp.Data.SqlProvider.Firebird</AssemblyName>
+    <Name>FSharp.Data.SqlProvider.Firebird</Name>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
@@ -19,7 +19,7 @@
     <None Include="paket.template" />
     <Compile Include="../SolutionAssemblyInfo.fs" />
     <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="Providers.MSAccess.fs" />
+    <Compile Include="Providers.Firebird.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SQLProvider.Common\SqlProvider.Common.fsproj" />

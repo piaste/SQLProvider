@@ -1,5 +1,4 @@
 FSharp.Core
-System.Data.SqlClient
 Microsoft.SourceLink.GitHub
 
-// System.Data.Odbc
+FirebirdSql.Data.FirebirdClient

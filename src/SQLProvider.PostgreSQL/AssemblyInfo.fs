@@ -5,13 +5,14 @@ open System.Reflection
 [<assembly: AssemblyTitleAttribute("SQLProvider.PostgreSQL")>]
 [<assembly: AssemblyProductAttribute("SQLProvider.PostgreSQL")>]
 [<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access to PostgreSQL.")>]
-[<assembly: AssemblyVersionAttribute("1.1.52")>]
-[<assembly: AssemblyFileVersionAttribute("1.1.52")>]
+
+
+
 do ()
 
 module internal AssemblyVersionInformation =
     let [<Literal>] AssemblyTitle = "SQLProvider.PostgreSQL"
     let [<Literal>] AssemblyProduct = "SQLProvider.PostgreSQL"
     let [<Literal>] AssemblyDescription = "Type providers for SQL database access to PostgreSQL."
-    let [<Literal>] AssemblyVersion = "1.1.52"
-    let [<Literal>] AssemblyFileVersion = "1.1.52"
+
+
