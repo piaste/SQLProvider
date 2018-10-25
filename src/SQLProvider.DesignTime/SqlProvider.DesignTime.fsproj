@@ -20,7 +20,7 @@
   <ItemGroup>
     <None Include="paket.references" />
     <None Include="paket.template" />
-    <Compile Include="../SolutionAssemblyInfo.fs" />
+
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="SqlDesignTime.fs" />
     <None Include="..\..\packages\NETStandard.Library.NETFramework\build\net461\lib\netstandard.dll" Condition="'$(TargetFramework)' == 'net461'">

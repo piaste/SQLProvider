@@ -17,7 +17,7 @@
   <ItemGroup>
     <None Include="paket.references" />
     <None Include="paket.template" />
-    <Compile Include="../SolutionAssemblyInfo.fs" />
+
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Providers.Oracle.fs" />
   </ItemGroup>

@@ -23,7 +23,7 @@
   <ItemGroup>
     <None Include="paket.references" />
     <None Include="paket.template" />
-    <Compile Include="../SolutionAssemblyInfo.fs" />
+
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="SqlRuntime.QueryExpression.fs" />
     <Compile Include="SqlRuntime.Linq.fs" />

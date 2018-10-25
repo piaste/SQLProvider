@@ -416,7 +416,7 @@ module Firebird =
                 return Set(r)
         }
 
-type internal FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, quoteChar: OdbcQuoteCharacter) as this =
+type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, quoteChar: OdbcQuoteCharacter) as this =
     let schemaCache = SchemaCache.LoadOrEmpty(contextSchemaPath)
     let myLock = new Object()
 

@@ -29,7 +29,7 @@
       <Paket>True</Paket>
       <Link>paket-files/ExpressionOptimizer.fs</Link>
     </Compile>
-    <Compile Include="../SolutionAssemblyInfo.fs" />
+
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Operators.fs" />
     <Compile Include="Utils.fs" />

@@ -11,7 +11,7 @@ open FSharp.Data.Sql.Schema
 open FSharp.Data.Sql.Common
 open System.Data.SqlClient
 
-type internal SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary) as this =
+type SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary) as this =
     // note we intentionally do not hang onto a connection object at any time,
     // as the type provider will dicate the connection lifecycles
     let schemaCache = SchemaCache.LoadOrEmpty(contextSchemaPath)

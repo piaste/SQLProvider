@@ -519,7 +519,7 @@ module internal Oracle =
                 return Set(returnValues)
         }
 
-type internal OracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames) =
+type OracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames) =
     let schemaCache = SchemaCache.LoadOrEmpty(contextSchemaPath)
     let myLock = new Object()
 

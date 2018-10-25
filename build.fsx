@@ -69,15 +69,23 @@ let release = ReleaseNotes.load "RELEASE_NOTES.md"
 
 // Generate assembly info files with the right version & up-to-date information
 Target.create "AssemblyInfo" (fun _ ->
-  let fileName = "src/" + project + "/AssemblyInfo.fs"
-  AssemblyInfoFile.create 
-      fileName
-      [ AssemblyInfo.Title project
-        AssemblyInfo.Product project
-        AssemblyInfo.Description summary
-        AssemblyInfo.Version release.AssemblyVersion
-        AssemblyInfo.FileVersion release.AssemblyVersion ] 
-      None
+  for assembly in (!! "src/*/*.fsproj") do
+    let assemblyName = Path.GetFileNameWithoutExtension assembly  
+    let fileName = "src/" + assemblyName + "/AssemblyInfo.fs"
+    let assemblySummary = 
+      match assemblyName with
+      | "SQLProvider.DesignTime" -> summary + " Design-time component."
+      | "SQLProvider.Runtime" -> summary + " Runtime component."
+      | providerName -> summary + " Provider for " + (providerName.Substring("SQLProvider.".Length)) + "."
+
+    AssemblyInfoFile.create 
+        fileName
+        [ AssemblyInfo.Title assemblyName
+          AssemblyInfo.Product assemblyName
+          AssemblyInfo.Description assemblySummary
+          AssemblyInfo.Version release.AssemblyVersion
+          AssemblyInfo.FileVersion release.AssemblyVersion ] 
+        None
 )
 
 // --------------------------------------------------------------------------------------

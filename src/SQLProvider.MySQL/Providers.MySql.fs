@@ -352,7 +352,7 @@ module MySql =
                 return Set(r)
         }
 
-type internal MySqlProvider(resolutionPath, contextSchemaPath, owner:string, referencedAssemblies) as this =
+type MySqlProvider(resolutionPath, contextSchemaPath, owner:string, referencedAssemblies) as this =
     let schemaCache = SchemaCache.LoadOrEmpty(contextSchemaPath)
     let myLock = new Object()
 

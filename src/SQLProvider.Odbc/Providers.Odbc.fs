@@ -10,7 +10,7 @@ open FSharp.Data.Sql.Transactions
 open FSharp.Data.Sql.Schema
 open FSharp.Data.Sql.Common
 
-type internal OdbcProvider(contextSchemaPath, quotechar : OdbcQuoteCharacter) =
+type OdbcProvider(contextSchemaPath, quotechar : OdbcQuoteCharacter) =
     let schemaCache = SchemaCache.LoadOrEmpty(contextSchemaPath)
     let myLock = new Object()
 
