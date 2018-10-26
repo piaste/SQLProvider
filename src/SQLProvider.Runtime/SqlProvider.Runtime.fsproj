@@ -13,7 +13,7 @@
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
     <OutputType>Library</OutputType>
-    <TargetFrameworks>netstandard2.0;netcoreapp2.1;net461</TargetFrameworks>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <Optimize>true</Optimize>
     <Tailcalls>true</Tailcalls>
     <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
@@ -39,7 +39,7 @@
     <ProjectReference Include="..\SQLProvider.Oracle\SqlProvider.Oracle.fsproj" />
     <ProjectReference Include="..\SQLProvider.PostgreSQL\SqlProvider.PostgreSQL.fsproj" />
     <ProjectReference Include="..\SQLProvider.SQLite\SqlProvider.SQLite.fsproj" />
-    <ProjectReference Include="..\SQLProvider.SQLServer\SqlProvider.SQLServer.fsproj" />
+    <ProjectReference Include="..\SQLProvider.MsSqlServer\SqlProvider.MsSqlServer.fsproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Be explicit about the version of FSharp.Core since we mention it in the manual nuget package spec -->

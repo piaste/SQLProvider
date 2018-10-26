@@ -10,7 +10,7 @@ open FSharp.Data.Sql.Common
 open FSharp.Data.Sql.Schema
 open System.Collections.Concurrent
 
-module internal ProviderBuilder =
+module ProviderBuilder =
     open FSharp.Data.Sql.Providers
 
     let createProvider vendor resolutionPath referencedAssemblies runtimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary =

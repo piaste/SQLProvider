@@ -1,18 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\ProviderProperties.props" />
   <PropertyGroup>
-    <!-- Can build: -->
-    <!-- <TargetFrameworks>net461;netcoreapp2.1;netstandard2.0</TargetFrameworks> -->
-    <!-- Lets use: -->
-    <TargetFrameworks>netstandard2.0</TargetFrameworks>
-    <DefineConstants>NETSTANDARD;NO_GENERATIVE</DefineConstants>
-    <AllowCrossTargeting>true</AllowCrossTargeting>
-    <OutputPath>..\..\bin</OutputPath>
     <AssemblyName>FSharp.Data.SqlProvider.SQLite</AssemblyName>
     <Name>FSharp.Data.SqlProvider.SQLite</Name>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
   </PropertyGroup>
   <ItemGroup>
     <None Include="paket.references" />
@@ -20,9 +11,6 @@
 
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Providers.SQLite.fs" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\SQLProvider.Common\SqlProvider.Common.fsproj" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

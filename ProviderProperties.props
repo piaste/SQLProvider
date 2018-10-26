@@ -1,28 +1,25 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project Sdk="Microsoft.NET.Sdk">
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright (c) Microsoft Corporation.  All Rights Reserved.  See License.txt in the project root for license information. -->
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="netfx.props" />
   <PropertyGroup>
-    <!-- Can build: -->
+  <!-- Can build: -->
     <!-- <TargetFrameworks>net461;netcoreapp2.1;netstandard2.0</TargetFrameworks> -->
     <!-- Lets use: -->
     <TargetFrameworks>netstandard2.0</TargetFrameworks>
     <DefineConstants>NETSTANDARD;NO_GENERATIVE</DefineConstants>
     <AllowCrossTargeting>true</AllowCrossTargeting>
     <OutputPath>..\..\bin</OutputPath>
-    <AssemblyName>FSharp.Data.SqlProvider.SQLServer</AssemblyName>
-    <Name>FSharp.Data.SqlProvider.SQLServer</Name>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+    <Optimize>true</Optimize>
+    <Tailcalls>true</Tailcalls>
+    <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
-  <ItemGroup>
-    <None Include="paket.references" />
-    <None Include="paket.template" />
-
-    <Compile Include="AssemblyInfo.fs" />
-    <Compile Include="Providers.MsSqlServer.fs" />
-  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SQLProvider.Common\SqlProvider.Common.fsproj" />
   </ItemGroup>
-  <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

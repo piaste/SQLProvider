@@ -5,10 +5,15 @@ VisualStudioVersion = 15.0.26403.7
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{14373A98-84EF-4EE2-A4E8-96DEE9FF5BEA}"
 	ProjectSection(SolutionItems) = preProject
+		after.SQLProvider.sln.targets = after.SQLProvider.sln.targets
 		build.fsx = build.fsx
+		Directory.Build.targets = Directory.Build.targets
+		netfx.props = netfx.props
 		paket.dependencies = paket.dependencies
 		paket.lock = paket.lock
+		ProviderProperties.props = ProviderProperties.props
 		README.md = README.md
+		SQLProvider.nuspec = SQLProvider.nuspec
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{D383A6BC-FD4A-4C9C-99CA-5AE5C8A7B261}"
@@ -55,7 +60,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Common", "src\S
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SqlProvider.Tests", "tests\SqlProvider.Tests\SqlProvider.Tests.fsproj", "{B5E56E66-5EE2-4C81-A242-9973AAAE9C99}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.SQLServer", "src\SQLProvider.SQLServer\SqlProvider.SQLServer.fsproj", "{5440DFF6-EE2E-4F79-9F78-27FF3BC8EFE0}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.SQLServer", "src\SQLProvider.MsSqlServer\SqlProvider.MsSqlServer.fsproj", "{5440DFF6-EE2E-4F79-9F78-27FF3BC8EFE0}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.MSAccess", "src\SQLProvider.MSAccess\SqlProvider.MSAccess.fsproj", "{947F2B9A-69D5-429A-9A4E-E4ADEC8E555D}"
 EndProject
@@ -63,7 +68,15 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Odbc", "src\SQL
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Runtime", "src\SQLProvider.Runtime\SqlProvider.Runtime.fsproj", "{DFF1990C-A482-488A-B03A-9A268C5C1CB0}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider,DesignTime", "src\SQLProvider.DesignTime\SqlProvider.DesignTime.fsproj", "{9FF31FD6-DBBE-498F-9B14-72CED01D3FD5}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.DesignTime", "src\SQLProvider.DesignTime\SqlProvider.DesignTime.fsproj", "{9FF31FD6-DBBE-498F-9B14-72CED01D3FD5}"
+EndProject
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Firebird", "src\SQLProvider.Firebird\SqlProvider.Firebird.fsproj", "{71CC5228-53BA-42B9-92E8-848FE9B601E8}"
+EndProject
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.MySQL", "src\SQLProvider.MySQL\SqlProvider.MySQL.fsproj", "{AB7EDD85-65AE-440C-B556-E35A6A7807F7}"
+EndProject
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Oracle", "src\SQLProvider.Oracle\SqlProvider.Oracle.fsproj", "{FA0F34D2-BE93-4280-89F0-CB95E3499947}"
+EndProject
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.SQLite", "src\SQLProvider.SQLite\SqlProvider.SQLite.fsproj", "{9A33962A-24D8-4954-A87A-3DC0E0BA8B88}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -103,6 +116,22 @@ Global
 		{9FF31FD6-DBBE-498F-9B14-72CED01D3FD5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9FF31FD6-DBBE-498F-9B14-72CED01D3FD5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9FF31FD6-DBBE-498F-9B14-72CED01D3FD5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{71CC5228-53BA-42B9-92E8-848FE9B601E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{71CC5228-53BA-42B9-92E8-848FE9B601E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{71CC5228-53BA-42B9-92E8-848FE9B601E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{71CC5228-53BA-42B9-92E8-848FE9B601E8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AB7EDD85-65AE-440C-B556-E35A6A7807F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB7EDD85-65AE-440C-B556-E35A6A7807F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB7EDD85-65AE-440C-B556-E35A6A7807F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB7EDD85-65AE-440C-B556-E35A6A7807F7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FA0F34D2-BE93-4280-89F0-CB95E3499947}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA0F34D2-BE93-4280-89F0-CB95E3499947}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA0F34D2-BE93-4280-89F0-CB95E3499947}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA0F34D2-BE93-4280-89F0-CB95E3499947}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9A33962A-24D8-4954-A87A-3DC0E0BA8B88}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9A33962A-24D8-4954-A87A-3DC0E0BA8B88}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9A33962A-24D8-4954-A87A-3DC0E0BA8B88}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9A33962A-24D8-4954-A87A-3DC0E0BA8B88}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

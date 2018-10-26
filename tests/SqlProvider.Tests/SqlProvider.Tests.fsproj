@@ -41,9 +41,9 @@
   <ItemGroup>
     <ProjectReference Include="../../src/SQLProvider.Common/SqlProvider.Common.fsproj" />
     <ProjectReference Include="../../src/SQLProvider.MSAccess/SqlProvider.MSAccess.fsproj" />
+    <ProjectReference Include="../../src/SQLProvider.MsSqlServer/SqlProvider.MsSqlServer.fsproj" />
     <ProjectReference Include="../../src/SQLProvider.Odbc/SqlProvider.Odbc.fsproj" />
     <ProjectReference Include="../../src/SQLProvider.PostgreSQL/SqlProvider.PostgreSQL.fsproj" />
-    <ProjectReference Include="../../src/SQLProvider.SQLServer/SqlProvider.SQLServer.fsproj" />
     <ProjectReference Include="../../src/SQLProvider.Runtime/SqlProvider.Runtime.fsproj" />
     <ProjectReference Include="../../src/SQLProvider.DesignTime/SqlProvider.DesignTime.fsproj" />
   </ItemGroup>

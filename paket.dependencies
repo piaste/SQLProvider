@@ -2,22 +2,25 @@ source https://nuget.org/api/v2
 frameworks net461, netcoreapp2.1, netstandard2.0
 storage none
 
-nuget FSharp.Core 4.5.2
-
-nuget NETStandard.Library.NETFramework
-
 // Common dependencies
+nuget FSharp.Core
+nuget NETStandard.Library.NETFramework framework:net461 , copy_content_to_output_dir:preserve_newest
+
 nuget FSharp.Compiler.Service
 nuget Microsoft.SourceLink.GitHub
 nuget System.Runtime.Serialization.Formatters
 nuget System.Data.SqlClient
 
 // Provider dependencies
+
 // Firebird
 nuget FirebirdSql.Data.FirebirdClient
 
 // MSAccess
 nuget System.Data.Odbc
+
+// MS SQL Server
+nuget System.Data.SqlClient
 
 // MySQL
 nuget MySqlConnector
