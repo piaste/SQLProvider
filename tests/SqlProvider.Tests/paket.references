@@ -2,8 +2,3 @@ FSharp.Core
 
 group Testing
     NUnit
-
-group Scripts
-    Oracle.ManagedDataAccess
-    Newtonsoft.Json
-    Npgsql

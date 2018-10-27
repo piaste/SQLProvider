@@ -1,10 +1,4 @@
-﻿#if INTERACTIVE
-#r @"../../bin/net451/FSharp.Data.SqlProvider.dll"
-#r @"System.Transactions.dll"
-#r @"../../packages/NUnit/lib/nunit.framework.dll"
-#else
-module CrudTests
-#endif
+﻿module CrudTests
 
 open System
 open System.IO
@@ -16,7 +10,6 @@ open System.Transactions
 
 [<Literal>]
 let connectionString = @"Data Source=./db/northwindEF.db;Version=3;Read Only=false;FailIfMissing=True;"
-
 
 type sql = SqlDataProvider<Common.DatabaseProviderTypes.SQLITE, connectionString, CaseSensitivityChange=Common.CaseSensitivityChange.ORIGINAL>
 FSharp.Data.Sql.Common.QueryEvents.SqlQueryEvent |> Event.add (printfn "Executing SQL: %O")

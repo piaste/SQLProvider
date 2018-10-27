@@ -1,9 +1,4 @@
-﻿#if INTERACTIVE
-#r @"../../bin/net451/FSharp.Data.SqlProvider.dll"
-#r @"../../packages/NUnit/lib/nunit.framework.dll"
-#else
-module QueryTests
-#endif
+﻿module QueryTests
 
 open System
 open FSharp.Data.Sql

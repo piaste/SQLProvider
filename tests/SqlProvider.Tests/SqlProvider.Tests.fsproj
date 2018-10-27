@@ -4,7 +4,7 @@
     <!-- Can build: -->
     <!-- <TargetFrameworks>net461;netcoreapp2.1;netstandard2.0</TargetFrameworks> -->
     <!-- Lets use: -->
-    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>net461</TargetFrameworks>
     <DefineConstants>NETSTANDARD;NO_GENERATIVE</DefineConstants>
     <AllowCrossTargeting>true</AllowCrossTargeting>
     <OutputPath>..\..\bin</OutputPath>

@@ -50,7 +50,7 @@ github Thorium/Linq.Expression.Optimizer src/Code/ExpressionOptimizer.fs
 
 group Testing
     source https://nuget.org/api/v2
-    framework netcoreapp2.1
+    framework net461, netcoreapp2.1
     nuget NUnit
 
 group Build
