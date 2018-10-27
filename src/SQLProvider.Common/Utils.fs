@@ -527,11 +527,11 @@ module Sql =
             con.Close(); result
         }
 
-    let executeSql createCommand sql (con:IDbConnection) = 
-        use com : IDbCommand = createCommand sql con 
+    let executeSql createCommand sql (con:#IDbConnection) = 
+        use com : #IDbCommand = createCommand sql con 
         com.ExecuteReader() 
 
-    let executeSqlAsync createCommand sql (con:IDbConnection) =
+    let executeSqlAsync createCommand sql (con:#IDbConnection) =
         use com : System.Data.Common.DbCommand = createCommand sql con   
         com.ExecuteReaderAsync() |> Async.AwaitTask  
 

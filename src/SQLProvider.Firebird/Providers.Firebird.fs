@@ -771,8 +771,8 @@ type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemb
                                     let prefix = if i>0 then (sprintf " %s " op) else ""
                                     let paras = extractData data
                                      
-                                    let operatorInQuery operator (array : #IDbDataParameter[]) =
-                                        let innersql, innerpars = data.Value |> box :?> string * IDbDataParameter[]
+                                    let operatorInQuery operator =
+                                        let innersql, innerpars = data.Value |> box :?> string * #IDbDataParameter[]
                                         Array.iter parameters.Add innerpars
                                         match operator with
                                         | FSharp.Data.Sql.NestedIn -> sprintf "%s IN (%s)" column innersql
@@ -786,7 +786,7 @@ type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemb
                                         | FSharp.Data.Sql.In 
                                         | FSharp.Data.Sql.NotIn -> operatorIn operator paras
                                         | FSharp.Data.Sql.NestedIn 
-                                        | FSharp.Data.Sql.NestedNotIn -> operatorInQuery operator paras
+                                        | FSharp.Data.Sql.NestedNotIn -> operatorInQuery operator
                                         | _ ->
                                             let aliasformat = sprintf "%s %s %s" column
                                             match data with 

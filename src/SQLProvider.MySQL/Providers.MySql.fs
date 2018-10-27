@@ -9,84 +9,13 @@ open FSharp.Data.Sql.Transactions
 open FSharp.Data.Sql.Schema
 open FSharp.Data.Sql.Common
 
+open MySql.Data
+open MySqlConnector
+open MySql.Data.MySqlClient
+
 module MySql =
-    let mutable resolutionPath = String.Empty
     let mutable schemas : string[] = [||]
-    let mutable referencedAssemblies = [||]
-
-    let assemblyNames = [
-        "MySql.Data.dll"; "MySqlConnector.dll"
-    ]
-
-    let assembly =
-        lazy Reflection.tryLoadAssemblyFrom resolutionPath referencedAssemblies assemblyNames
-
-    let findType name =
-        match assembly.Value with
-        | Choice1Of2(assembly) -> 
-            let types = 
-                try assembly.GetTypes() 
-                with | :? System.Reflection.ReflectionTypeLoadException as e ->
-                    let msgs = e.LoaderExceptions |> Seq.map(fun e -> e.GetBaseException().Message) |> Seq.distinct
-                    let details = "Details: " + Environment.NewLine + String.Join(Environment.NewLine, msgs)
-                    failwith (e.Message + Environment.NewLine + details)
-            types |> Array.find(fun t -> t.Name = name)
-        | Choice2Of2(paths, errors) ->
-           let details = 
-                match errors with 
-                | [] -> "" 
-                | x -> Environment.NewLine + "Details: " + Environment.NewLine + String.Join(Environment.NewLine, x)
-           failwithf "Unable to resolve assemblies. One of %s (e.g. from Nuget package MySql.Data) must exist in the paths: %s %s %s"
-                (String.Join(", ", assemblyNames |> List.toArray))
-                Environment.NewLine
-                (String.Join(Environment.NewLine, paths |> Seq.filter(fun p -> not(String.IsNullOrEmpty p))))
-                details
-
-    let connectionType =  lazy (findType "MySqlConnection")
-    let commandType =     lazy (findType "MySqlCommand")
-    let parameterType =   lazy (findType "MySqlParameter")
-    let enumType =        lazy (findType "MySqlDbType")
-    let getSchemaMethod = lazy (connectionType.Value.GetMethod("GetSchema",[|typeof<string>; typeof<string[]>|]))
-    //let paramEnumCtor   = lazy parameterType.Value.GetConstructor([|typeof<string>;enumType.Value|])
-    //let paramObjectCtor = lazy parameterType.Value.GetConstructor([|typeof<string>;typeof<obj>|])
-
-    let getSchema (name:string) (args:string[]) (conn:IDbConnection) =
-#if !NETSTANDARD
-        getSchemaMethod.Value.Invoke(conn,[|name; args|]) :?> DataTable
-#else
-        // Initial version of MySQL .Net-Standard doesn't suppot GetSchema()
-        let cont = connectionType.Value
-        try 
-            cont.GetMethod("GetSchema",[|typeof<string>; typeof<string[]>|]).Invoke(conn,[|name; args|]) :?> DataTable
-        with
-        | :?  System.Reflection.TargetInvocationException as re when (re.InnerException <> null && re.InnerException :? System.NotSupportedException) ->
-            let schemacoll = cont.GetMethod("GetSchemaCollection",[|typeof<string>; typeof<string[]>|]).Invoke(conn,[|name; args|])
-            let collType = schemacoll.GetType()
-            let name = collType.GetProperty("Name").GetValue(schemacoll,null) :?> string
-            let dt = new DataTable(name)
-            let cols = collType.GetProperty("Columns").GetValue(schemacoll,null) :?> System.Collections.IEnumerable
-            let rows = collType.GetProperty("Rows").GetValue(schemacoll,null) :?> System.Collections.IList
-            let colType = findType "SchemaColumn"
-            let rowType = findType "MySqlSchemaRow"
-            for col in cols do 
-                dt.Columns.Add(
-                    col.GetType().GetProperty("Name").GetValue(col,null) :?> string, 
-                    col.GetType().GetProperty("Type").GetValue(col,null) :?> Type) |> ignore
-            for row in rows do 
-                let mutable idx = 0
-                let xs = 
-                    let prop = rowType.GetMethod("GetValueForName", (Reflection.BindingFlags.NonPublic ||| Reflection.BindingFlags.Instance))
-                    [| for c in cols do 
-                            idx <- idx + 1
-                            let cn = c.GetType().GetProperty("Name").GetValue(c,null) :?> string
-                            let r = prop.Invoke(row, [| cn |])
-                            if r <> null then yield r
-                            else yield box(DBNull.Value)
-                    |]
-                dt.Rows.Add(xs) |> ignore
-            dt
-#endif
-
+       
     let mutable typeMappings = []
     let mutable findClrType : (string -> TypeMapping option)  = fun _ -> failwith "!"
     let mutable findDbType : (string -> TypeMapping option)  = fun _ -> failwith "!"
@@ -94,17 +23,14 @@ module MySql =
     let createCommandParameter sprocCommand (param:QueryParameter) value =
         let mapping = if value <> null && (not sprocCommand) then (findClrType (value.GetType().ToString())) else None
         let value = if value = null then (box System.DBNull.Value) else value
-
-        let parameterType = parameterType.Value
-        let mySqlDbTypeSetter =
-            parameterType.GetProperty("MySqlDbType").GetSetMethod()
-
-        let p = Activator.CreateInstance(parameterType,[|box param.Name;value|]) :?> IDbDataParameter
-
+        
+        let p = MySqlParameter()
+        p.ParameterName <- param.Name
+        p.Value <- value 
         p.Direction <-  param.Direction
 
         p.DbType <- (defaultArg mapping param.TypeMapping).DbType
-        param.TypeMapping.ProviderType |> Option.iter (fun pt -> mySqlDbTypeSetter.Invoke(p, [|pt|]) |> ignore)
+        param.TypeMapping.ProviderType |> Option.iter (fun pt -> p.MySqlDbType <- enum pt) |> ignore
 
         Option.iter (fun l -> p.Size <- l) param.Length
         p
@@ -127,16 +53,11 @@ module MySql =
     let ripQuotes (str:String) = 
         (if str.Contains(" ") then str.Replace("\"","") else str)
 
-    let createTypeMappings con =
-        let dt = getSchema "DataTypes" [||] con
-
+    let createTypeMappings (con : MySqlConnection) =
+        let dt = con.GetSchema("DataTypes")
+        
         let getDbType(providerType:int) =
-            let parameterType = parameterType.Value
-            let p = Activator.CreateInstance(parameterType,[||]) :?> IDbDataParameter
-            let oracleDbTypeSetter = parameterType.GetProperty("MySqlDbType").GetSetMethod()
-            let dbTypeGetter = parameterType.GetProperty("DbType").GetGetMethod()
-            oracleDbTypeSetter.Invoke(p, [|providerType|]) |> ignore
-            dbTypeGetter.Invoke(p, [||]) :?> DbType
+            MySqlParameter(MySqlDbType = enum providerType).DbType
 
         let getClrType (input:string) = Type.GetType(input).ToString()
 
@@ -167,26 +88,11 @@ module MySql =
         typeMappings <- mappings
         findClrType <- clrMappings.TryFind
         findDbType <- dbMappings.TryFind
-
-    let createConnection connectionString =
-        try
-            Activator.CreateInstance(connectionType.Value,[|box connectionString|]) :?> IDbConnection
-        with
-        | :? System.Reflection.ReflectionTypeLoadException as ex ->
-            let errorfiles = ex.LoaderExceptions |> Array.map(fun e -> e.GetBaseException().Message) |> Seq.distinct |> Seq.toArray
-            let msg = ex.GetBaseException().Message + "\r\n" + String.Join("\r\n", errorfiles)
-            raise(new System.Reflection.TargetInvocationException(msg, ex))
-        | :? System.Reflection.TargetInvocationException as ex when (ex.InnerException <> null && ex.InnerException :? DllNotFoundException) ->
-            let msg = ex.GetBaseException().Message + ", Path: " + (System.IO.Path.GetFullPath resolutionPath)
-            raise(new System.Reflection.TargetInvocationException(msg, ex))
-        | :? System.TypeInitializationException as te when (te.InnerException :? System.Reflection.TargetInvocationException) ->
-            let ex = te.InnerException :?> System.Reflection.TargetInvocationException
-            let msg = ex.GetBaseException().Message + ", Path: " + (System.IO.Path.GetFullPath resolutionPath)
-            raise(new System.Reflection.TargetInvocationException(msg, ex.InnerException)) 
-
+        
     let createCommand commandText connection =
-        Activator.CreateInstance(commandType.Value,[|box commandText;box connection|]) :?> IDbCommand
+        new MySqlCommand(commandText = commandText, connection = connection)
 
+    
     let getSprocReturnCols (sparams: QueryParameter list) =
         match sparams |> List.filter (fun p -> p.Direction <> ParameterDirection.Input) with
         | [] ->
@@ -204,7 +110,7 @@ module MySql =
         let procName = (Sql.dbUnboxWithDefault<string> (Guid.NewGuid().ToString()) row.["specific_name"])
         { ProcName = procName; Owner = sprocSchema; PackageName = String.Empty; }
 
-    let getSprocParameters (con:IDbConnection) (name:SprocName) =
+    let getSprocParameters (con:MySqlConnection) (name:SprocName) =
         let createSprocParameters (row:DataRow) =
             let dataType = Sql.dbUnbox row.["data_type"]
             let argumentName = Sql.dbUnbox row.["parameter_name"]
@@ -241,13 +147,13 @@ module MySql =
         |> Seq.sortBy (fun x -> x.Ordinal)
         |> Seq.toList
 
-    let getSprocs (con:IDbConnection) =
-        getSchema "Procedures" [||] con
+    let getSprocs (con:MySqlConnection) =
+        con.GetSchema("Procedures")
         |> DataTable.map (fun row ->
                             let name = getSprocName row
                             match (Sql.dbUnbox<string> row.["routine_type"]).ToUpper() with
-                            | "FUNCTION" -> Root("Functions", Sproc({ Name = name; Params = (fun con -> getSprocParameters con name); ReturnColumns = (fun _ name -> getSprocReturnCols name) }))
-                            | "PROCEDURE" ->  Root("Procedures", Sproc({ Name = name; Params = (fun con -> getSprocParameters con name); ReturnColumns = (fun _ name -> getSprocReturnCols name) }))
+                            | "FUNCTION" -> Root("Functions", Sproc({ Name = name; Params = (fun con -> getSprocParameters (con :?> MySqlConnection) name); ReturnColumns = (fun _ name -> getSprocReturnCols name) }))
+                            | "PROCEDURE" ->  Root("Procedures", Sproc({ Name = name; Params = (fun con -> getSprocParameters (con :?> MySqlConnection) name); ReturnColumns = (fun _ name -> getSprocReturnCols name) }))
                             | _ -> Empty
                           )
         |> Seq.toList
@@ -258,7 +164,7 @@ module MySql =
             par.Value
         else null
 
-    let processReturnColumn reader (outps:(int*IDbDataParameter)[]) (retCol:QueryParameter) =
+    let processReturnColumn reader (outps:(int*#IDbDataParameter)[]) (retCol:QueryParameter) =
         match retCol.TypeMapping.ProviderTypeName with
         | Some "cursor" ->
             let result = ResultSet(retCol.Name, Sql.dataReaderToArray reader)
@@ -269,7 +175,7 @@ module MySql =
             | Some(_,p) -> ScalarResultSet(p.ParameterName, readParameter p)
             | None -> failwithf "Excepted return column %s but could not find it in the parameter set" retCol.Name
 
-    let processReturnColumnAsync reader (outps:(int*IDbDataParameter)[]) (retCol:QueryParameter) =
+    let processReturnColumnAsync reader (outps:(int*#IDbDataParameter)[]) (retCol:QueryParameter) =
         async {
             match retCol.TypeMapping.ProviderTypeName with
             | Some "cursor" ->
@@ -456,9 +362,7 @@ type MySqlProvider(resolutionPath, contextSchemaPath, owner:string, referencedAs
         cmd
 
     do
-        MySql.resolutionPath <- resolutionPath
         MySql.schemas <- owner.Split(';', ',', ' ', '\n', '\r') |> Array.filter (not << String.IsNullOrWhiteSpace)
-        MySql.referencedAssemblies <- referencedAssemblies
 
     interface ISqlProvider with
         member __.GetLockObject() = myLock
@@ -493,16 +397,17 @@ type MySqlProvider(resolutionPath, contextSchemaPath, owner:string, referencedAs
                 let comm = reader.GetString(0)
                 if comm <> null then comm else ""
             else ""
-        member __.CreateConnection(connectionString) = MySql.createConnection connectionString
-        member __.CreateCommand(connection,commandText) = MySql.createCommand commandText connection
-        member __.CreateCommandParameter(param, value) = MySql.createCommandParameter false param value
+        member __.CreateConnection(connectionString) = new MySqlConnection(connectionString) :> IDbConnection
+        member __.CreateCommand(connection,commandText) = MySql.createCommand commandText (connection :?> MySqlConnection) :> IDbCommand
+        member __.CreateCommandParameter(param, value) = MySql.createCommandParameter false param value :> IDbDataParameter
         member __.ExecuteSprocCommand(com,definition,retCols,values) = MySql.executeSprocCommand com definition retCols values
         member __.ExecuteSprocCommandAsync(com,definition,retCols,values) = MySql.executeSprocCommandAsync com definition retCols values
-        member __.CreateTypeMappings(con) = Sql.connect con MySql.createTypeMappings
+        member __.CreateTypeMappings(con) = Sql.connect (con :?> MySqlConnection) MySql.createTypeMappings
         member __.GetSchemaCache() = schemaCache
 
         member __.GetTables(con,cs) =
-            let databases = con.Database.Split(';', ',', ' ', '\n', '\r')
+            let mySqlCon = con :?> MySqlConnection
+            let databases = mySqlCon.Database.Split(';', ',', ' ', '\n', '\r')
             let dbName = (if String.IsNullOrEmpty owner then databases else owner.Split(';', ',', ' ', '\n', '\r')) 
                             |> Array.filter (not << String.IsNullOrWhiteSpace) 
                             |> Array.map(fun x -> "'" + x + "'")
@@ -511,9 +416,9 @@ type MySqlProvider(resolutionPath, contextSchemaPath, owner:string, referencedAs
                 | Common.CaseSensitivityChange.TOUPPER -> "UPPER(TABLE_SCHEMA)"
                 | Common.CaseSensitivityChange.TOLOWER -> "LOWER(TABLE_SCHEMA)"
                 | _ -> "TABLE_SCHEMA"
-            Sql.connect con (fun con ->
-                let executeSql createCommand sql (con:IDbConnection) = 
-                    use com : IDbCommand = createCommand sql con   
+            Sql.connect mySqlCon (fun con ->
+                let executeSql createCommand sql (con:#IDbConnection) = 
+                    use com : #IDbCommand = createCommand sql con   
                     use reader = com.ExecuteReader()
                     [ while reader.Read() do
                         let table ={ Schema = reader.GetString(0); Name = reader.GetString(1); Type=reader.GetString(2) }
@@ -613,12 +518,12 @@ type MySqlProvider(resolutionPath, contextSchemaPath, owner:string, referencedAs
                 (children,parents)) 
             res)
 
-        member __.GetSprocs(con) = Sql.connect con MySql.getSprocs
+        member __.GetSprocs(con) = Sql.connect (con :?> MySqlConnection) MySql.getSprocs
         member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT * FROM %s LIMIT %i;" (table.FullName.Replace("\"","`").Replace("[","`").Replace("]","`").Replace("``","`")) amount
         member __.GetIndividualQueryText(table,column) = sprintf "SELECT * FROM `%s`.`%s` WHERE `%s`.`%s`.`%s` = @id" table.Schema (MySql.ripQuotes table.Name) table.Schema (MySql.ripQuotes table.Name) column
 
         member this.GenerateQueryText(sqlQuery,baseAlias,baseTable,projectionColumns,isDeleteScript, _) =
-            let parameters = ResizeArray<_>()
+            let parameters = ResizeArray<IDbDataParameter>()
             // make this nicer later.. just try and get the damn thing to work properly (well, at all) for now :D
             // NOTE: really need to assign the parameters their correct sql types
             let param = ref 0
@@ -729,7 +634,7 @@ type MySqlProvider(resolutionPath, contextSchemaPath, owner:string, referencedAs
                                             | Some(x) -> [|createParamet (box x)|]
                                             | None ->    [|createParamet DBNull.Value|]
 
-                                    let operatorIn operator (array : IDbDataParameter[]) =
+                                    let operatorIn operator (array : #IDbDataParameter[]) =
                                         if Array.isEmpty array then
                                             match operator with
                                             | FSharp.Data.Sql.In -> "FALSE" // nothing is in the empty set
@@ -746,8 +651,8 @@ type MySqlProvider(resolutionPath, contextSchemaPath, owner:string, referencedAs
                                     let prefix = if i>0 then (sprintf " %s " op) else ""
                                     let paras = extractData data
 
-                                    let operatorInQuery operator (array : IDbDataParameter[]) =
-                                        let innersql, innerpars = data.Value |> box :?> string * IDbDataParameter[]
+                                    let operatorInQuery operator =
+                                        let innersql, innerpars = data.Value |> box :?> string * #IDbDataParameter[]
                                         Array.iter parameters.Add innerpars
                                         match operator with
                                         | FSharp.Data.Sql.NestedIn -> sprintf "%s IN (%s)" column innersql
@@ -761,7 +666,7 @@ type MySqlProvider(resolutionPath, contextSchemaPath, owner:string, referencedAs
                                         | FSharp.Data.Sql.In 
                                         | FSharp.Data.Sql.NotIn -> operatorIn operator paras
                                         | FSharp.Data.Sql.NestedIn 
-                                        | FSharp.Data.Sql.NestedNotIn -> operatorInQuery operator paras
+                                        | FSharp.Data.Sql.NestedNotIn -> operatorInQuery operator
                                         | _ ->
 
                                             let aliasformat = sprintf "%s %s %s" column
