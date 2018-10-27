@@ -772,7 +772,7 @@ type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemb
                                     let paras = extractData data
                                      
                                     let operatorInQuery operator =
-                                        let innersql, innerpars = data.Value |> box :?> string * #IDbDataParameter[]
+                                        let innersql, innerpars = data.Value |> box :?> string * IDbDataParameter[]
                                         Array.iter parameters.Add innerpars
                                         match operator with
                                         | FSharp.Data.Sql.NestedIn -> sprintf "%s IN (%s)" column innersql

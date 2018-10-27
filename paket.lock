@@ -71,7 +71,7 @@ NUGET
       Npgsql (>= 4.0)
     Npgsql.LegacyPostgis (1.0)
       Npgsql (>= 4.0)
-    Oracle.ManagedDataAccess (18.3)
+    Oracle.ManagedDataAccess.Core (2.18.3)
     runtime.debian.8-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3.3) - restriction: || (&& (== net461) (< net45) (>= netstandard2.0)) (== netcoreapp2.1) (== netstandard2.0)
     runtime.debian.9-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3.3) - restriction: || (&& (== net461) (< net45) (>= netstandard2.0)) (== netcoreapp2.1) (== netstandard2.0)
     runtime.fedora.23-x64.runtime.native.System.Security.Cryptography.OpenSsl (4.3.3) - restriction: || (&& (== net461) (< net45) (>= netstandard2.0)) (== netcoreapp2.1) (== netstandard2.0)
@@ -369,7 +369,7 @@ GITHUB
     src/Code/ExpressionOptimizer.fs (75add801762b25df6f256ce9d25b81ee8f1b1b12)
 GROUP Build
 STORAGE: NONE
-RESTRICTION: >= netcoreapp2.1
+RESTRICTION: == netcoreapp2.1
 NUGET
   remote: https://www.nuget.org/api/v2
     BlackFox.VsWhere (0.3.2)
@@ -1028,7 +1028,7 @@ NUGET
       System.Xml.ReaderWriter (>= 4.3)
 
 GROUP Scripts
-RESTRICTION: >= netcoreapp2.1
+RESTRICTION: == netcoreapp2.1
 NUGET
   remote: https://www.nuget.org/api/v2
     FirebirdSql.Data.FirebirdClient (6.3)
@@ -1104,7 +1104,7 @@ NUGET
     System.ValueTuple (4.5)
 
 GROUP Testing
-RESTRICTION: >= netcoreapp2.1
+RESTRICTION: == netcoreapp2.1
 NUGET
   remote: https://www.nuget.org/api/v2
     Microsoft.NETCore.Platforms (2.1.1)

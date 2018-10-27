@@ -10,57 +10,17 @@ open FSharp.Data.Sql.Schema
 open FSharp.Data.Sql.Common
 open FSharp.Data.Sql.Common.Utilities
 
+open Oracle.ManagedDataAccess.Client
+open Oracle.ManagedDataAccess.Types
+
 module internal Oracle =
-    let mutable resolutionPath = String.Empty
-    let mutable referencedAssemblies : string array = [||]
     let mutable owner = String.Empty
-
-    let assemblyNames =
-        [
-            "Oracle.ManagedDataAccess.dll"
-            "Oracle.DataAccess.dll"
-        ]
-
-    let assembly =
-        lazy Reflection.tryLoadAssemblyFrom resolutionPath referencedAssemblies assemblyNames
-
-    let findType name =
-        match assembly.Value with
-        | Choice1Of2(assembly) -> 
-            let types = 
-                try assembly.GetTypes() 
-                with | :? System.Reflection.ReflectionTypeLoadException as e ->
-                    let msgs = e.LoaderExceptions |> Seq.map(fun e -> e.GetBaseException().Message) |> Seq.distinct
-                    let details = "Details: " + Environment.NewLine + String.Join(Environment.NewLine, msgs)
-                    failwith (e.Message + Environment.NewLine + details)
-            types |> Array.find(fun t -> t.Name = name)
-        | Choice2Of2(paths, errors) ->
-           let details = 
-                match errors with 
-                | [] -> "" 
-                | x -> Environment.NewLine + "Details: " + Environment.NewLine + String.Join(Environment.NewLine, x)
-           failwithf "Unable to resolve assemblies. One of %s must exist in the paths: %s %s %s"
-                (String.Join(", ", assemblyNames |> List.toArray))
-                Environment.NewLine
-                (String.Join(Environment.NewLine, paths |> Seq.filter(fun p -> not(String.IsNullOrEmpty p))))
-                details
 
     let systemNames =
         [
             "SYSTEM"; "SYS"; "XDB"
         ]
 
-    let connectionType = lazy  (findType "OracleConnection")
-    let commandType =  lazy   (findType "OracleCommand")
-    let parameterType = lazy   (findType "OracleParameter")
-    let oracleRefCursorType = lazy   (findType "OracleRefCursor")
-
-    let getDataReaderForRefCursor = lazy (oracleRefCursorType.Value.GetMethod("GetDataReader",[||]))
-
-    let getSchemaMethod = lazy (connectionType.Value.GetMethod("GetSchema",[|typeof<string>; typeof<string[]>|]))
-
-    let getSchema name (args:string[]) conn =
-        getSchemaMethod.Value.Invoke(conn,[|name; args|]) :?> DataTable
 
     let mutable typeMappings = []
     let mutable findClrType : (string -> TypeMapping option)  = fun _ -> failwith "!"
@@ -68,17 +28,16 @@ module internal Oracle =
 
     let createCommandParameter (param:QueryParameter) value =
         let value = if value = null then (box System.DBNull.Value) else value
-        let parameterType = parameterType.Value
-        let oracleDbTypeSetter =
-            parameterType.GetProperty("OracleDbType").GetSetMethod()
 
-        let p = Activator.CreateInstance(parameterType,[|box param.Name; box value|]) :?> IDbDataParameter
+        let p = new OracleParameter()
+        p.ParameterName <- param.Name
+        p.Value <- value
         p.Direction <- param.Direction
 
         match param.TypeMapping.ProviderTypeName with
         | Some _ ->
             p.DbType <- param.TypeMapping.DbType
-            param.TypeMapping.ProviderType |> Option.iter (fun pt -> oracleDbTypeSetter.Invoke(p, [|pt|]) |> ignore)
+            param.TypeMapping.ProviderType |> Option.iter (fun pt -> p.OracleDbType <- enum pt)
         | None -> ()
 
         match param.Length with
@@ -96,13 +55,11 @@ module internal Oracle =
             | false -> fun c -> sprintf "\"%s.%s\"" al c
         Utilities.genericAliasNotation aliasSprint col
 
-    let createTypeMappings con =
+    let createTypeMappings (con : OracleConnection) =
         let getDbType(providerType) =
-            let p = Activator.CreateInstance(parameterType.Value,[||]) :?> IDbDataParameter
-            let oracleDbTypeSetter = parameterType.Value.GetProperty("OracleDbType").GetSetMethod()
-            let dbTypeGetter = parameterType.Value.GetProperty("DbType").GetGetMethod()
-            oracleDbTypeSetter.Invoke(p, [|providerType|]) |> ignore
-            dbTypeGetter.Invoke(p, [||]) :?> DbType
+            use p = new OracleParameter()
+            p.OracleDbType <- enum providerType
+            p.DbType
 
         let getClrType (input:string) =
             (match input.ToLower() with
@@ -111,7 +68,7 @@ module internal Oracle =
 
         let mappings =
             [
-                let dt = getSchema "DataTypes" [||] con
+                let dt = con.GetSchema("DataTypes")
                 for r in dt.Rows do
                     let clrType = getClrType (string r.["DataType"])
                     let oracleType = string r.["TypeName"]
@@ -149,58 +106,37 @@ module internal Oracle =
             then prop.GetGetMethod().Invoke(instance, [||]) |> Some
             else None
         else None
-
-    let createConnection connectionString =
-        try
-            Activator.CreateInstance(connectionType.Value,[|box connectionString|]) :?> IDbConnection
-        with
-        | :? System.Reflection.ReflectionTypeLoadException as ex ->
-            let errorfiles = ex.LoaderExceptions |> Array.map(fun e -> e.GetBaseException().Message) |> Seq.distinct |> Seq.toArray
-            let msg = ex.Message + "\r\n" + String.Join("\r\n", errorfiles)
-            raise(new System.Reflection.TargetInvocationException(msg, ex))
-        | :? System.Reflection.TargetInvocationException as ex when (ex.InnerException <> null && ex.InnerException :? DllNotFoundException) ->
-            let msg = ex.GetBaseException().Message + ", Path: " + (System.IO.Path.GetFullPath resolutionPath)
-            raise(new System.Reflection.TargetInvocationException(msg, ex))
-        | :? System.TypeInitializationException as te when (te.InnerException :? System.Reflection.TargetInvocationException) ->
-            let ex = te.InnerException :?> System.Reflection.TargetInvocationException
-            let msg = ex.GetBaseException().Message + ", Path: " + (System.IO.Path.GetFullPath resolutionPath)
-            raise(new System.Reflection.TargetInvocationException(msg, ex.InnerException)) 
-
+        
     let createCommand commandText connection =
-        Activator.CreateInstance(commandType.Value,[|box commandText;box connection|]) :?> IDbCommand
+        new OracleCommand(commandText, connection)
 
-    let readParameter (parameter:IDbDataParameter) =
-        let parameterType = parameterType.Value
-        let oracleDbTypeGetter =
-            parameterType.GetProperty("OracleDbType").GetGetMethod()
-
-        match parameter.DbType, (oracleDbTypeGetter.Invoke(parameter, [||]) :?> int) with
-        | DbType.Object, 121 ->
+    let readParameter (parameter:OracleParameter) =
+        
+        match parameter.DbType, parameter.OracleDbType with
+        | DbType.Object, OracleDbType.RefCursor ->
              if parameter.Value = null
              then null
              else
                 let data =
-                    Sql.dataReaderToArray (getDataReaderForRefCursor.Value.Invoke(parameter.Value, [||]) :?> IDataReader)
-                    |> Seq.ofArray
+                  (parameter.Value :?> OracleRefCursor).GetDataReader()
+                  |> Sql.dataReaderToArray 
+                  |> Seq.ofArray
                 data |> box
         | _, _ ->
             match tryReadValueProperty parameter.Value with
             | Some(obj) -> obj |> box
             | _ -> parameter.Value |> box
 
-    let readParameterAsync (parameter:IDbDataParameter) =
+    let readParameterAsync (parameter:OracleParameter) =
         async {
-            let parameterType = parameterType.Value
-            let oracleDbTypeGetter =
-                parameterType.GetProperty("OracleDbType").GetGetMethod()
-
-            match parameter.DbType, (oracleDbTypeGetter.Invoke(parameter, [||]) :?> int) with
-            | DbType.Object, 121 ->
+            match parameter.DbType, parameter.OracleDbType with
+            | DbType.Object, OracleDbType.RefCursor ->
                  if parameter.Value = null
                  then return null
                  else
                     let! data =
-                        Sql.dataReaderToArrayAsync (getDataReaderForRefCursor.Value.Invoke(parameter.Value, [||]) :?> Common.DbDataReader)
+                        (parameter.Value :?> OracleRefCursor).GetDataReader()
+                        |> Sql.dataReaderToArrayAsync 
                     return data |> Seq.ofArray |> box
             | _, _ ->
                 match tryReadValueProperty parameter.Value with
@@ -286,13 +222,13 @@ module internal Oracle =
         |> Seq.map (fun c -> c.Name, c)
         |> Map.ofSeq
 
-    let getRelationships (primaryKeys:IDictionary<_,_>) table con =
+    let getRelationships (primaryKeys:IDictionary<_,_>) table (con : OracleConnection) =
         let foreignKeyCols =
-            getSchema "ForeignKeyColumns" [|owner;table|] con
+            con.GetSchema("ForeignKeyColumns")
             |> DataTable.map (fun row -> (Sql.dbUnbox row.[1], Sql.dbUnbox row.[3]))
             |> Map.ofList
         let rels =
-            getSchema "ForeignKeys" [|owner;table|] con
+            con.GetSchema("ForeignKeys")
             |> DataTable.mapChoose (fun row ->
                 let name = Sql.dbUnbox row.[4]
                 match primaryKeys.TryGetValue(table) with
@@ -343,7 +279,7 @@ module internal Oracle =
             | false -> ""
         { ProcName = procName; Owner = owner; PackageName = packageName }
 
-    let getSprocParameters (con:IDbConnection) (name:SprocName) =
+    let getSprocParameters con (name:SprocName) =
         let querySprocParameters packageName sprocName =
             let sql = 
                 if String.IsNullOrWhiteSpace(packageName)
@@ -378,7 +314,7 @@ module internal Oracle =
         |> Seq.sortBy (fun x -> x.Ordinal)
         |> Seq.toList
     
-    let getPackageSprocs (con:IDbConnection) packageName = 
+    let getPackageSprocs con packageName = 
         let sql = 
             sprintf """SELECT * 
                        FROM SYS.ALL_PROCEDURES 
@@ -399,31 +335,31 @@ module internal Oracle =
                        
                     { ProcName = procName; Owner = owner; PackageName = packageName }
 
-                { Name = name; Params = (fun con -> getSprocParameters con name); ReturnColumns = (fun _ sparams -> getSprocReturnColumns sparams) }
+                { Name = name; Params = (fun con -> getSprocParameters (con :?> OracleConnection) name); ReturnColumns = (fun _ sparams -> getSprocReturnColumns sparams) }
             
             )
         procs
 
-    let getSprocs con =
+    let getSprocs (con : OracleConnection) =
 
         let buildDef classType row =
             let name = getSprocName row
-            Root(classType, Sproc({ Name = name; Params = (fun con -> getSprocParameters con name); ReturnColumns = (fun _ sparams -> getSprocReturnColumns sparams) }))
+            Root(classType, Sproc({ Name = name; Params = (fun con -> getSprocParameters (con :?> OracleConnection) name); ReturnColumns = (fun _ sparams -> getSprocReturnColumns sparams) }))
         
         let buildPackageDef classType (row:DataRow) =
             let name = Sql.dbUnbox<string> row.["OBJECT_NAME"]
-            Root(classType, Package(name, { Name = name; Sprocs = (fun con -> getPackageSprocs con name) }))
+            Root(classType, Package(name, { Name = name; Sprocs = (fun con -> getPackageSprocs (con :?> OracleConnection) name) }))
 
         let functions =
-            (getSchema "Functions" [|owner|] con)
+            con.GetSchema("Functions")
             |> DataTable.map (fun row -> buildDef "Functions" row)
 
         let procs =
-            (getSchema "Procedures" [|owner|] con)
+            con.GetSchema("Procedures")
             |> DataTable.map (fun row -> buildDef "Procedures" row)
 
         let packages = 
-            (getSchema "Packages" [|owner|] con)
+            con.GetSchema("Packages")
             |> DataTable.map (fun row -> buildPackageDef "Packages" row)
 
         functions @ procs @ packages
@@ -619,12 +555,11 @@ type OracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssembli
 
     do
         Oracle.owner <- owner
-        Oracle.referencedAssemblies <- referencedAssemblies
-        Oracle.resolutionPath <- resolutionPath
 
     interface ISqlProvider with
         member __.GetLockObject() = myLock
         member __.GetTableDescription(con,tableName) = 
+            let con = con :?> OracleConnection
             let sn = tableName.Substring(0,tableName.LastIndexOf(".")) 
             let tn = tableName.Substring(tableName.LastIndexOf(".")+1) 
             Sql.connect con (fun con -> 
@@ -643,6 +578,7 @@ type OracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssembli
                     ""
             )
         member __.GetColumnDescription(con,tableName,columnName) = 
+            let con = con :?> OracleConnection
             let sn = tableName.Substring(0,tableName.LastIndexOf(".")) 
             let tn = tableName.Substring(tableName.LastIndexOf(".")+1) 
             Sql.connect con (fun con -> 
@@ -661,24 +597,26 @@ type OracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssembli
                 | _ -> 
                     ""
             )
-        member __.CreateConnection(connectionString) = Oracle.createConnection connectionString
-        member __.CreateCommand(connection,commandText) =  Oracle.createCommand commandText connection
-        member __.CreateCommandParameter(param, value) = Oracle.createCommandParameter param value
+        member __.CreateConnection(connectionString) = new OracleConnection(connectionString) :> IDbConnection
+        member __.CreateCommand(connection,commandText) =  Oracle.createCommand commandText (connection :?> OracleConnection) :> IDbCommand
+        member __.CreateCommandParameter(param, value) = Oracle.createCommandParameter param value :> IDbDataParameter
         member __.ExecuteSprocCommand(con, param ,retCols, values:obj array) = Oracle.executeSprocCommand con param retCols values
         member __.ExecuteSprocCommandAsync(con, param ,retCols, values:obj array) = Oracle.executeSprocCommandAsync con param retCols values
         member __.GetSchemaCache() = schemaCache
 
         member __.CreateTypeMappings(con) =
+            let con = con :?> OracleConnection
             Sql.connect con (fun con ->
                 Oracle.createTypeMappings con
                 Oracle.getPrimaryKeys tableNames con
                 |> Seq.iter (fun pk -> schemaCache.PrimaryKeys.GetOrAdd(pk.Key, pk.Value) |> ignore))
 
         member __.GetTables(con,_) =
-               if schemaCache.Tables.IsEmpty then
-                    Sql.connect con (Oracle.getTables tableNames)
-                    |> List.map (fun t -> schemaCache.Tables.GetOrAdd(t.FullName, t))
-               else schemaCache.Tables |> Seq.map (fun t -> t.Value) |> Seq.toList
+            let con = con :?> OracleConnection
+            if schemaCache.Tables.IsEmpty then
+                Sql.connect con (Oracle.getTables tableNames)
+                |> List.map (fun t -> schemaCache.Tables.GetOrAdd(t.FullName, t))
+            else schemaCache.Tables |> Seq.map (fun t -> t.Value) |> Seq.toList
 
         member __.GetPrimaryKey(table) =
             match schemaCache.PrimaryKeys.TryGetValue table.Name with
@@ -686,6 +624,7 @@ type OracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssembli
             | _ -> None
 
         member __.GetColumns(con,table) =
+            let con = con :?> OracleConnection
             match schemaCache.Columns.TryGetValue table.FullName  with
             | true, cols when cols.Count > 0 -> cols
             | _ ->
@@ -693,16 +632,19 @@ type OracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssembli
                 schemaCache.Columns.GetOrAdd(table.FullName, cols)
 
         member __.GetRelationships(con,table) =
+            let con = con :?> OracleConnection
             schemaCache.Relationships.GetOrAdd(table.FullName, fun name ->
                     let rels = Sql.connect con (Oracle.getRelationships schemaCache.PrimaryKeys table.Name)
                     rels)
 
-        member __.GetSprocs(con) = Sql.connect con Oracle.getSprocs
+        member __.GetSprocs(con) = 
+            let con = con :?> OracleConnection
+            Sql.connect con Oracle.getSprocs
         member __.GetIndividualsQueryText(table,amount) = Oracle.getIndivdualsQueryText amount table
         member __.GetIndividualQueryText(table,column) = Oracle.getIndivdualQueryText table column
 
         member this.GenerateQueryText(sqlQuery,baseAlias,baseTable,projectionColumns,isDeleteScript, _) =
-            let parameters = ResizeArray<_>()
+            let parameters = ResizeArray<IDbDataParameter>()
 
             // NOTE: really need to assign the parameters their correct db types
             let param = ref 0

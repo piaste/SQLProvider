@@ -31,7 +31,7 @@ nuget MySqlConnector
 nuget System.Data.Odbc
 
 // Oracle
-nuget Oracle.ManagedDataAccess
+nuget Oracle.ManagedDataAccess.Core
 
 // PostgreSQL
 nuget Npgsql
@@ -50,12 +50,12 @@ github Thorium/Linq.Expression.Optimizer src/Code/ExpressionOptimizer.fs
 
 group Testing
     source https://nuget.org/api/v2
-    framework >= netcoreapp2.1
+    framework netcoreapp2.1
     nuget NUnit
 
 group Build
     source https://nuget.org/api/v2
-    framework >= netcoreapp2.1
+    framework netcoreapp2.1
     storage none
 
     nuget Fake.Core.BuildServer
@@ -77,7 +77,7 @@ group Build
 
 group Scripts
     source https://nuget.org/api/v2
-    framework >= netcoreapp2.1
+    framework netcoreapp2.1
 
     nuget MySql.Data < 7.0.0
     nuget MySqlConnector
