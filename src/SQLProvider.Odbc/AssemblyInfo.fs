@@ -2,17 +2,16 @@
 namespace System
 open System.Reflection
 
-[<assembly: AssemblyTitleAttribute("SQLProvider.ODBC")>]
-[<assembly: AssemblyProductAttribute("SQLProvider.ODBC")>]
-[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access to ODBC.")>]
-
-
-
+[<assembly: AssemblyTitleAttribute("SqlProvider.Odbc")>]
+[<assembly: AssemblyProductAttribute("SqlProvider.Odbc")>]
+[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access. Provider for Odbc.")>]
+[<assembly: AssemblyVersionAttribute("1.1.52")>]
+[<assembly: AssemblyFileVersionAttribute("1.1.52")>]
 do ()
 
 module internal AssemblyVersionInformation =
-    let [<Literal>] AssemblyTitle = "SQLProvider.ODBC"
-    let [<Literal>] AssemblyProduct = "SQLProvider.ODBC"
-    let [<Literal>] AssemblyDescription = "Type providers for SQL database access to ODBC."
-
-
+    let [<Literal>] AssemblyTitle = "SqlProvider.Odbc"
+    let [<Literal>] AssemblyProduct = "SqlProvider.Odbc"
+    let [<Literal>] AssemblyDescription = "Type providers for SQL database access. Provider for Odbc."
+    let [<Literal>] AssemblyVersion = "1.1.52"
+    let [<Literal>] AssemblyFileVersion = "1.1.52"

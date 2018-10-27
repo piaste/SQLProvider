@@ -10,6 +10,8 @@ nuget FSharp.Compiler.Service
 nuget Microsoft.SourceLink.GitHub
 nuget System.Runtime.Serialization.Formatters
 nuget System.Data.SqlClient
+nuget Microsoft.Extensions.Configuration
+nuget Microsoft.Extensions.Configuration.Xml
 
 // Provider dependencies
 
@@ -37,15 +39,14 @@ nuget Npgsql.Json.NET
 nuget Npgsql.LegacyPostGIS    
 
 // SQLite
-nuget Microsoft.Data.SQLite
-nuget SQLitePCLRaw.bundle_green
+// nuget Microsoft.Data.SQLite
+// nuget SQLitePCLRaw.bundle_green
+nuget System.Data.SQLite.Core
 
 // Type provider SDK
-group SourceFiles
-
-    github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fsi
-    github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fs
-    github Thorium/Linq.Expression.Optimizer src/Code/ExpressionOptimizer.fs
+github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fsi
+github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fs
+github Thorium/Linq.Expression.Optimizer src/Code/ExpressionOptimizer.fs
 
 group Testing
     source https://nuget.org/api/v2
@@ -71,7 +72,8 @@ group Build
     nuget System.Data.SqlClient
     nuget Npgsql 
 
-    clitool dotnet-fake
+    // Doesn't quite work yet, needs to install fake globally for now
+    // clitool dotnet-fake
 
 group Scripts
     source https://nuget.org/api/v2

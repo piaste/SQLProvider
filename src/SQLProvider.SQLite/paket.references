@@ -1,5 +1,6 @@
 FSharp.Core
 Microsoft.SourceLink.GitHub
 
-Microsoft.Data.SQLite
-SQLitePCLRaw.bundle_green
+// Microsoft.Data.SQLite
+// SQLitePCLRaw.bundle_green
+System.Data.SQLite.Core

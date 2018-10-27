@@ -2,17 +2,16 @@
 namespace System
 open System.Reflection
 
-[<assembly: AssemblyTitleAttribute("SQLProvider.SQLite")>]
-[<assembly: AssemblyProductAttribute("SQLProvider.SQLite")>]
-[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access to SQLite.")>]
-
-
-
+[<assembly: AssemblyTitleAttribute("SqlProvider.SQLite")>]
+[<assembly: AssemblyProductAttribute("SqlProvider.SQLite")>]
+[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access. Provider for SQLite.")>]
+[<assembly: AssemblyVersionAttribute("1.1.52")>]
+[<assembly: AssemblyFileVersionAttribute("1.1.52")>]
 do ()
 
 module internal AssemblyVersionInformation =
-    let [<Literal>] AssemblyTitle = "SQLProvider.SQLite"
-    let [<Literal>] AssemblyProduct = "SQLProvider.SQLite"
-    let [<Literal>] AssemblyDescription = "Type providers for SQL database access to SQLite."
-
-
+    let [<Literal>] AssemblyTitle = "SqlProvider.SQLite"
+    let [<Literal>] AssemblyProduct = "SqlProvider.SQLite"
+    let [<Literal>] AssemblyDescription = "Type providers for SQL database access. Provider for SQLite."
+    let [<Literal>] AssemblyVersion = "1.1.52"
+    let [<Literal>] AssemblyFileVersion = "1.1.52"

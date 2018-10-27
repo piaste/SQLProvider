@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-  <Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- Can build: -->
     <!-- <TargetFrameworks>net461;netcoreapp2.1;netstandard2.0</TargetFrameworks> -->
@@ -15,21 +15,20 @@
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="paket.references" />
-    <None Include="paket.template" />
-    <Compile Include="..\..\paket-files\sourcefiles\fsprojects\FSharp.TypeProviders.SDK\src\ProvidedTypes.fsi">
+    <Compile Include="..\..\paket-files\fsprojects\FSharp.TypeProviders.SDK\src\ProvidedTypes.fsi">
       <Paket>True</Paket>
       <Link>paket-files/ProvidedTypes.fsi</Link>
     </Compile>
-    <Compile Include="..\..\paket-files\sourcefiles\fsprojects\FSharp.TypeProviders.SDK\src\ProvidedTypes.fs">
+    <Compile Include="..\..\paket-files\fsprojects\FSharp.TypeProviders.SDK\src\ProvidedTypes.fs">
       <Paket>True</Paket>
       <Link>paket-files/ProvidedTypes.fs</Link>
     </Compile>
-    <Compile Include="..\..\paket-files\sourcefiles\Thorium\Linq.Expression.Optimizer\src\Code\ExpressionOptimizer.fs">
+    <Compile Include="..\..\paket-files\Thorium\Linq.Expression.Optimizer\src\Code\ExpressionOptimizer.fs">
       <Paket>True</Paket>
       <Link>paket-files/ExpressionOptimizer.fs</Link>
     </Compile>
-
+    <None Include="paket.references" />
+    <None Include="paket.template" />
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Operators.fs" />
     <Compile Include="Utils.fs" />

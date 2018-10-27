@@ -9,18 +9,12 @@ open FSharp.Data.Sql.Schema
 open FSharp.Data.Sql.Common
 open FSharp.Data.Sql.Transactions
 
+open FirebirdSql.Data.FirebirdClient
+
 module Firebird =
-    let mutable resolutionPath = String.Empty
     let mutable owner = String.Empty
-    let mutable referencedAssemblies = [||]
 
-    let assemblyNames = [
-        "FirebirdSql.Data.FirebirdClient.dll"
-    ]
-
-    let assembly =
-        lazy Reflection.tryLoadAssemblyFrom resolutionPath referencedAssemblies assemblyNames
-        
+            
     type DataReaderWithCommand(dataReader: IDataReader, command : IDbCommand) = 
         member x.DataReader = dataReader
         member x.Command = command
@@ -68,59 +62,27 @@ module Firebird =
             member x.Read() = x.DataReader.Read()
             member x.RecordsAffected = x.DataReader.RecordsAffected
     
-    let executeSql createCommand sql (con:IDbConnection) =        
-        let com : IDbCommand = createCommand sql con   
+    let executeSql sql (con:FbConnection) =        
+        let com = new FbCommand(sql, con)
         new DataReaderWithCommand(com.ExecuteReader(), com) :> IDataReader        
     
-    let executeSqlAsDataTable createCommand sql con = 
-        use r = executeSql createCommand sql con
+    let executeSqlAsDataTable sql con = 
+        use r = executeSql sql con
         let dt = new DataTable()
         dt.Load(r)
         dt
     
-    let executeSqlAsync createCommand sql (con:IDbConnection) =
-        use com : System.Data.Common.DbCommand = createCommand sql con   
+    let executeSqlAsync sql (con:FbConnection) =
+        use com = new FbCommand(sql, con)  
         com.ExecuteReaderAsync() |> Async.AwaitTask  
 
-    let executeSqlAsDataTableAsync createCommand sql con = 
+    let executeSqlAsDataTableAsync sql con = 
         async{
-            use! r = executeSqlAsync createCommand sql con
+            use! r = executeSqlAsync sql con
             let dt = new DataTable()
             dt.Load(r)
             return dt
         }
-
-    let findType name =
-        match assembly.Value with
-        | Choice1Of2(assembly) -> 
-            let types = 
-                try assembly.GetTypes() 
-                with | :? System.Reflection.ReflectionTypeLoadException as e ->
-                    let msgs = e.LoaderExceptions |> Seq.map(fun e -> e.GetBaseException().Message) |> Seq.distinct
-                    let details = "Details: " + Environment.NewLine + String.Join(Environment.NewLine, msgs)
-                    failwith (e.Message + Environment.NewLine + details)
-            types |> Array.find(fun t -> t.Name = name)
-        | Choice2Of2(paths, errors) ->
-           let details = 
-                match errors with 
-                | [] -> "" 
-                | x -> Environment.NewLine + "Details: " + Environment.NewLine + String.Join(Environment.NewLine, x)
-           failwithf "Unable to resolve assemblies. One of %s (e.g. from Nuget package Firebird.Data) must exist in the paths: %s %s %s"
-                (String.Join(", ", assemblyNames |> List.toArray))
-                Environment.NewLine
-                (String.Join(Environment.NewLine, paths |> Seq.filter(fun p -> not(String.IsNullOrEmpty p))))
-                details
-
-    let connectionType =  lazy (findType "FbConnection")
-    let commandType =     lazy (findType "FbCommand")
-    let parameterType =   lazy (findType "FbParameter")
-    let enumType =        lazy (findType "FbDbType")
-    let getSchemaMethod = lazy (connectionType.Value.GetMethod("GetSchema",[|typeof<string>; typeof<string[]>|]))
-    let paramEnumCtor   = lazy parameterType.Value.GetConstructor([|typeof<string>;enumType.Value|])
-    let paramObjectCtor = lazy parameterType.Value.GetConstructor([|typeof<string>;typeof<obj>|])
-
-    let getSchema name (args:string[]) (conn:IDbConnection) =
-        getSchemaMethod.Value.Invoke(conn,[|name; args|]) :?> DataTable
 
     let mutable typeMappings = []
     let mutable findClrType : (string -> TypeMapping option)  = fun _ -> failwith "!"
@@ -130,16 +92,15 @@ module Firebird =
         let mapping = if value <> null && (not sprocCommand) then (findClrType (value.GetType().ToString())) else None
         let value = if value = null then (box System.DBNull.Value) else value
 
-        let parameterType = parameterType.Value
-        let firebirdDbTypeSetter =
-            parameterType.GetProperty("FbDbType").GetSetMethod()
 
-        let p = Activator.CreateInstance(parameterType,[|box param.Name;value|]) :?> IDbDataParameter
+        let p = FbParameter()
+        p.ParameterName <- param.Name
+        p.Value <- value
 
         p.Direction <-  param.Direction
 
         p.DbType <- (defaultArg mapping param.TypeMapping).DbType
-        param.TypeMapping.ProviderType |> Option.iter (fun pt -> firebirdDbTypeSetter.Invoke(p, [|pt|]) |> ignore)
+        param.TypeMapping.ProviderType |> Option.iter (fun pt -> p.FbDbType <- enum pt)
 
         Option.iter (fun l -> p.Size <- l) param.Length
         p
@@ -162,16 +123,11 @@ module Firebird =
     let ripQuotes (str:String) = 
         (if str.Contains(" ") then str.Replace("\"","") else str)
 
-    let createTypeMappings con =
-        let dt = getSchema "DataTypes" [||] con
+    let createTypeMappings (con : FbConnection) =
+        let dt = con.GetSchema("DataTypes")
 
         let getDbType(providerType:int) =
-            let parameterType = parameterType.Value
-            let p = Activator.CreateInstance(parameterType,[||]) :?> IDbDataParameter
-            let oracleDbTypeSetter = parameterType.GetProperty("FbDbType").GetSetMethod()
-            let dbTypeGetter = parameterType.GetProperty("DbType").GetGetMethod()
-            oracleDbTypeSetter.Invoke(p, [|providerType|]) |> ignore
-            dbTypeGetter.Invoke(p, [||]) :?> DbType
+            FbParameter(FbDbType = enum providerType).DbType
 
         let getClrType (input:string) = Type.GetType(input).ToString()
 
@@ -199,25 +155,6 @@ module Firebird =
         typeMappings <- mappings
         findClrType <- clrMappings.TryFind
         findDbType <- dbMappings.TryFind
-
-    let createConnection connectionString =
-        try
-            Activator.CreateInstance(connectionType.Value,[|box connectionString|]) :?> IDbConnection
-        with
-        | :? System.Reflection.ReflectionTypeLoadException as ex ->
-            let errorfiles = ex.LoaderExceptions |> Array.map(fun e -> e.GetBaseException().Message) |> Seq.distinct |> Seq.toArray
-            let msg = ex.GetBaseException().Message + "\r\n" + String.Join("\r\n", errorfiles)
-            raise(new System.Reflection.TargetInvocationException(msg, ex))
-        | :? System.Reflection.TargetInvocationException as ex when (ex.InnerException <> null && ex.InnerException :? DllNotFoundException) ->
-            let msg = ex.GetBaseException().Message + ", Path: " + (System.IO.Path.GetFullPath resolutionPath)
-            raise(new System.Reflection.TargetInvocationException(msg, ex))
-        | :? System.TypeInitializationException as te when (te.InnerException :? System.Reflection.TargetInvocationException) ->
-            let ex = te.InnerException :?> System.Reflection.TargetInvocationException
-            let msg = ex.GetBaseException().Message + ", Path: " + (System.IO.Path.GetFullPath resolutionPath)
-            raise(new System.Reflection.TargetInvocationException(msg, ex.InnerException)) 
-
-    let createCommand commandText connection =
-        Activator.CreateInstance(commandType.Value,[|box commandText;box connection|]) :?> IDbCommand
 
     let getSprocReturnCols (sparams: QueryParameter list) =
         match sparams |> List.filter (fun p -> p.Direction <> ParameterDirection.Input) with
@@ -258,7 +195,7 @@ module Firebird =
             when 261 then 'BLOB'|| iif(RDB$FIELD_SUB_TYPE=1, ' SUB_TYPE '|| RDB$FIELD_SUB_TYPE, '')
             END)"
 
-    let getSprocParameters (con:IDbConnection) (name:SprocName) =
+    let getSprocParameters (con:FbConnection) (name:SprocName) =
         let createSprocParameters (row:DataRow) =
             let dataType = Sql.dbUnbox row.["data_type"]
             let argumentName = Sql.dbUnbox row.["parameter_name"]
@@ -295,33 +232,39 @@ module Firebird =
             FROM RDB$PROCEDURE_PARAMETERS r
             inner join RDB$FIELDS f ON r.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME
             where r.RDB$PROCEDURE_NAME='%s'" sqlTypeName name.ProcName)
-        Sql.connect con (executeSqlAsDataTable createCommand sqlParams)
+        Sql.connect con (executeSqlAsDataTable sqlParams)
         |> DataTable.groupBy (fun row -> getSprocName row, createSprocParameters row)  // ** TODO: The query is already filtered by sprocname, refactor it!
         //|> Seq.filter (fun (n, _) -> n.ProcName = name.ProcName)
         |> Seq.collect (snd >> Seq.choose id)
         |> Seq.sortBy (fun x -> x.Ordinal)
         |> Seq.toList
 
-    let getSprocs (con:IDbConnection) =
-        getSchema "Procedures" [||] con
+    let getSprocs (con:FbConnection) =
+        con.GetSchema("Procedures")
         |> DataTable.map (fun row ->
-                            let name = getSprocName row
-                            //match (Sql.dbUnbox<string> row.["routine_type"]).ToUpper() with
-                            //| "FUNCTION" -> Root("Functions", Sproc({ Name = name; Params = (fun con -> getSprocParameters con name); ReturnColumns = (fun _ name -> getSprocReturnCols name) }))
-                            //| "PROCEDURE" ->  
-                            Root("Procedures", Sproc({ Name = name; Params = (fun con -> getSprocParameters con name); ReturnColumns = (fun _ paramList -> getSprocReturnCols paramList) }))
-                            //| _ -> Empty
-                          )
+          let name = getSprocName row
+          //match (Sql.dbUnbox<string> row.["routine_type"]).ToUpper() with
+          //| "FUNCTION" -> Root("Functions", Sproc({ Name = name; Params = (fun con -> getSprocParameters con name); ReturnColumns = (fun _ name -> getSprocReturnCols name) }))
+          //| "PROCEDURE" ->  
+          Root("Procedures", 
+            Sproc({ Name = name
+                    Params = (fun con -> getSprocParameters (con :?> FbConnection) name)
+                    ReturnColumns = (fun _ paramList -> getSprocReturnCols paramList) 
+                  }
+            )
+          )
+          //| _ -> Empty
+        )
         |> Seq.toList
 
-    let readParameter (parameter:IDbDataParameter) =
+    let readParameter (parameter:FbParameter) =
         if parameter <> null then
             let par = parameter
             par.Value
         else null
 
 
-    let processReturnColumn reader (outps:(int*IDbDataParameter)[]) (retCol:QueryParameter) =
+    let processReturnColumn reader (outps:(int*FbParameter)[]) (retCol:QueryParameter) =
         match retCol.TypeMapping.ProviderTypeName with
         | Some "cursor" ->
             let result = ResultSet(retCol.Name, Sql.dataReaderToArray reader)
@@ -332,7 +275,7 @@ module Firebird =
             | Some(_,p) -> ScalarResultSet(p.ParameterName, readParameter p)
             | None -> failwithf "Excepted return column %s but could not find it in the parameter set" retCol.Name
 
-    let processReturnColumnAsync reader (outps:(int*IDbDataParameter)[]) (retCol:QueryParameter) =
+    let processReturnColumnAsync reader (outps:(int*FbParameter)[]) (retCol:QueryParameter) =
         async {
             match retCol.TypeMapping.ProviderTypeName with
             | Some "cursor" ->
@@ -530,9 +473,7 @@ type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemb
         cmd
 
     do
-        Firebird.resolutionPath <- resolutionPath
         Firebird.owner <- owner
-        Firebird.referencedAssemblies <- referencedAssemblies
 
     interface ISqlProvider with
         member __.GetLockObject() = myLock
@@ -567,25 +508,26 @@ type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemb
                 let comm = reader.GetString(0)
                 if comm <> null then comm else ""
             else ""
-        member __.CreateConnection(connectionString) = Firebird.createConnection connectionString
-        member __.CreateCommand(connection,commandText) = Firebird.createCommand commandText connection
-        member __.CreateCommandParameter(param, value) = Firebird.createCommandParameter false param value
+        member __.CreateConnection(connectionString) = new FbConnection(connectionString) :> IDbConnection
+        member __.CreateCommand(connection,commandText) = new FbCommand(commandText, connection :?> FbConnection) :> IDbCommand
+        member __.CreateCommandParameter(param, value) = Firebird.createCommandParameter false param value :> IDbDataParameter
         member __.ExecuteSprocCommand(com,definition,retCols,values) = Firebird.executeSprocCommand com definition retCols values
         member __.ExecuteSprocCommandAsync(com,definition,retCols,values) = Firebird.executeSprocCommandAsync com definition retCols values
-        member __.CreateTypeMappings(con) = Sql.connect con Firebird.createTypeMappings
+        member __.CreateTypeMappings(con) = Sql.connect (con :?> FbConnection) Firebird.createTypeMappings
         member __.GetSchemaCache() = schemaCache
 
         member __.GetTables(con,cs) =
-            let dbName = if String.IsNullOrEmpty owner then con.Database else owner
+            let fbCon = con :?> FbConnection
+            let dbName = if String.IsNullOrEmpty owner then fbCon.Database else owner
             (*let caseChane = 
                 match cs with
                 | Common.CaseSensitivityChange.TOUPPER -> "UPPER(TABLE_SCHEMA)"
                 | Common.CaseSensitivityChange.TOLOWER -> "LOWER(TABLE_SCHEMA)"
                 | _ -> "TABLE_SCHEMA"
                 *)
-            if con.State = ConnectionState.Closed then con.Open()
-            Sql.connect con (fun con ->
-                use reader = Firebird.executeSql Firebird.createCommand (sprintf "select 'Dbo', trim(RDB$RELATION_NAME), 'BASE TABLE' from RDB$RELATIONS") con
+            if fbCon.State = ConnectionState.Closed then fbCon.Open()
+            Sql.connect fbCon (fun con ->
+                use reader = Firebird.executeSql (sprintf "select 'Dbo', trim(RDB$RELATION_NAME), 'BASE TABLE' from RDB$RELATIONS") con   
                 [ while reader.Read() do
                     let table ={ Schema = reader.GetString(0); Name = reader.GetString(1).Trim(); Type=reader.GetString(2) }
                     yield schemaCache.Tables.GetOrAdd(table.Name,table) ])
@@ -652,6 +594,7 @@ type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemb
                 schemaCache.Columns.AddOrUpdate(table.Name, columns, fun x old -> match columns.Count with 0 -> old | x -> columns)
 
         member __.GetRelationships(con,table) =
+          let fbCon = con :?> FbConnection
           schemaCache.Relationships.GetOrAdd(table.Name, fun name ->
             let baseQuery = @"SELECT
                                  trim(rc.RDB$CONSTRAINT_NAME) AS FK_CONSTRAINT_NAME
@@ -668,14 +611,15 @@ type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemb
                             left join RDB$INDEX_SEGMENTS iref on iref.RDB$INDEX_NAME=rcref.RDB$INDEX_NAME
                               "
 
-            let res = Sql.connect con (fun con ->
-                use reader = (Firebird.executeSql Firebird.createCommand (sprintf "%s WHERE RC.RDB$RELATION_NAME = '%s'" baseQuery (Firebird.ripQuotes table.Name) ) con)
+            let res = Sql.connect fbCon (fun con ->
+                let cmdText = (sprintf "%s WHERE RC.RDB$RELATION_NAME = '%s'" baseQuery (Firebird.ripQuotes table.Name) )
+                use reader = (Firebird.executeSql cmdText con)
                 let children =
                     [ while reader.Read() do
                         yield { Name = reader.GetString(0); PrimaryTable=Table.CreateFullName(reader.GetString(2),reader.GetString(1)); PrimaryKey=reader.GetString(3)
                                 ForeignTable=Table.CreateFullName(reader.GetString(5),reader.GetString(4)); ForeignKey=reader.GetString(6) } ]
                 reader.Dispose()
-                use reader = Firebird.executeSql Firebird.createCommand (sprintf "%s WHERE RCref.RDB$RELATION_NAME = '%s'" baseQuery (Firebird.ripQuotes table.Name) ) con
+                use reader = Firebird.executeSql (sprintf "%s WHERE RCref.RDB$RELATION_NAME = '%s'" baseQuery (Firebird.ripQuotes table.Name) ) con
                 let parents =
                     [ while reader.Read() do
                         yield { Name = reader.GetString(0); PrimaryTable=Table.CreateFullName(reader.GetString(2),reader.GetString(1)); PrimaryKey=reader.GetString(3)
@@ -683,7 +627,7 @@ type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemb
                 (children,parents)) 
             res)
 
-        member __.GetSprocs(con) = Sql.connect con Firebird.getSprocs
+        member __.GetSprocs(con) = Sql.connect (con :?> FbConnection) Firebird.getSprocs
         member __.GetIndividualsQueryText(table,amount) = sprintf "SELECT first %i * FROM %s;" amount (getTableNameForQuery table)
         member __.GetIndividualQueryText(table,column) = sprintf "SELECT * FROM %s WHERE %s.%s = @id" (getTableNameForQuery table) (getTableNameForQuery table) column
 
@@ -714,7 +658,7 @@ type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemb
 
                 let fieldParam (value:obj) =
                     let p = createParamet value
-                    parameters.Add p
+                    parameters.Add (p :> IDbDataParameter)
                     p.ParameterName
 
                 match c with
@@ -810,7 +754,7 @@ type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemb
                                             | Some(x) -> [|createParamet (box x)|]
                                             | None ->    [|createParamet DBNull.Value|]
 
-                                    let operatorIn operator (array : IDbDataParameter[]) =
+                                    let operatorIn operator (array : #IDbDataParameter[]) =
                                         if Array.isEmpty array then
                                             match operator with
                                             | FSharp.Data.Sql.In -> "1<>1" // nothing is in the empty set
@@ -826,8 +770,8 @@ type FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemb
 
                                     let prefix = if i>0 then (sprintf " %s " op) else ""
                                     let paras = extractData data
-
-                                    let operatorInQuery operator (array : IDbDataParameter[]) =
+                                     
+                                    let operatorInQuery operator (array : #IDbDataParameter[]) =
                                         let innersql, innerpars = data.Value |> box :?> string * IDbDataParameter[]
                                         Array.iter parameters.Add innerpars
                                         match operator with

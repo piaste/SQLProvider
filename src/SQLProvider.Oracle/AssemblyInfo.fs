@@ -2,17 +2,16 @@
 namespace System
 open System.Reflection
 
-[<assembly: AssemblyTitleAttribute("SQLProvider.Oracle")>]
-[<assembly: AssemblyProductAttribute("SQLProvider.Oracle")>]
-[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access to Oracle.")>]
-
-
-
+[<assembly: AssemblyTitleAttribute("SqlProvider.Oracle")>]
+[<assembly: AssemblyProductAttribute("SqlProvider.Oracle")>]
+[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access. Provider for Oracle.")>]
+[<assembly: AssemblyVersionAttribute("1.1.52")>]
+[<assembly: AssemblyFileVersionAttribute("1.1.52")>]
 do ()
 
 module internal AssemblyVersionInformation =
-    let [<Literal>] AssemblyTitle = "SQLProvider.Oracle"
-    let [<Literal>] AssemblyProduct = "SQLProvider.Oracle"
-    let [<Literal>] AssemblyDescription = "Type providers for SQL database access to Oracle."
-
-
+    let [<Literal>] AssemblyTitle = "SqlProvider.Oracle"
+    let [<Literal>] AssemblyProduct = "SqlProvider.Oracle"
+    let [<Literal>] AssemblyDescription = "Type providers for SQL database access. Provider for Oracle."
+    let [<Literal>] AssemblyVersion = "1.1.52"
+    let [<Literal>] AssemblyFileVersion = "1.1.52"

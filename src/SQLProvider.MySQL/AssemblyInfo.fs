@@ -2,17 +2,16 @@
 namespace System
 open System.Reflection
 
-[<assembly: AssemblyTitleAttribute("SQLProvider.MySQL")>]
-[<assembly: AssemblyProductAttribute("SQLProvider.MySQL")>]
-[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access to MySQL.")>]
-
-
-
+[<assembly: AssemblyTitleAttribute("SqlProvider.MySQL")>]
+[<assembly: AssemblyProductAttribute("SqlProvider.MySQL")>]
+[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access. Provider for MySQL.")>]
+[<assembly: AssemblyVersionAttribute("1.1.52")>]
+[<assembly: AssemblyFileVersionAttribute("1.1.52")>]
 do ()
 
 module internal AssemblyVersionInformation =
-    let [<Literal>] AssemblyTitle = "SQLProvider.MySQL"
-    let [<Literal>] AssemblyProduct = "SQLProvider.MySQL"
-    let [<Literal>] AssemblyDescription = "Type providers for SQL database access to MySQL."
-
-
+    let [<Literal>] AssemblyTitle = "SqlProvider.MySQL"
+    let [<Literal>] AssemblyProduct = "SqlProvider.MySQL"
+    let [<Literal>] AssemblyDescription = "Type providers for SQL database access. Provider for MySQL."
+    let [<Literal>] AssemblyVersion = "1.1.52"
+    let [<Literal>] AssemblyFileVersion = "1.1.52"

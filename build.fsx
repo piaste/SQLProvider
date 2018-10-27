@@ -70,13 +70,15 @@ let release = ReleaseNotes.load "RELEASE_NOTES.md"
 // Generate assembly info files with the right version & up-to-date information
 Target.create "AssemblyInfo" (fun _ ->
   for assembly in (!! "src/*/*.fsproj") do
-    let assemblyName = Path.GetFileNameWithoutExtension assembly  
+    let assemblyName = IO.Path.GetFileNameWithoutExtension assembly  
     let fileName = "src/" + assemblyName + "/AssemblyInfo.fs"
     let assemblySummary = 
+      summary + " " + 
       match assemblyName with
-      | "SQLProvider.DesignTime" -> summary + " Design-time component."
-      | "SQLProvider.Runtime" -> summary + " Runtime component."
-      | providerName -> summary + " Provider for " + (providerName.Substring("SQLProvider.".Length)) + "."
+      | "SQLProvider.Common" -> "Common support library."
+      | "SQLProvider.DesignTime" -> "Design-time component."
+      | "SQLProvider.Runtime" -> "Runtime component."
+      | providerName -> "Provider for " + (providerName.Substring("SQLProvider.".Length)) + "."
 
     AssemblyInfoFile.create 
         fileName
@@ -104,15 +106,7 @@ Target.create "CleanDocs" (fun _ ->
 // Build library & test project
 
 Target.create "Build" (fun _ ->
-  
-  
-    // Build .NET Core solution
-    DotNet.build(fun p -> 
-        { p with 
-            Configuration = DotNet.BuildConfiguration.Release})
-
-        "src/SQLProvider/SQLProvider.fsproj"
-
+      
     // Build .NET Framework solution
     !!"SQLProvider.sln" ++ "SQLProvider.Tests.sln"
     |> MSBuild.runReleaseExt id "" [ "DefineConstants", BuildServer.buildServer.ToString().ToUpper()] "Rebuild"

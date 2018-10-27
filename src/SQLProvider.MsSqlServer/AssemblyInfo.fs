@@ -2,17 +2,16 @@
 namespace System
 open System.Reflection
 
-[<assembly: AssemblyTitleAttribute("SQLProvider.MsSqlServer")>]
-[<assembly: AssemblyProductAttribute("SQLProvider.MsSqlServer")>]
-[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access to MsSqlServer.")>]
-
-
-
+[<assembly: AssemblyTitleAttribute("SqlProvider.MsSqlServer")>]
+[<assembly: AssemblyProductAttribute("SqlProvider.MsSqlServer")>]
+[<assembly: AssemblyDescriptionAttribute("Type providers for SQL database access. Provider for MsSqlServer.")>]
+[<assembly: AssemblyVersionAttribute("1.1.52")>]
+[<assembly: AssemblyFileVersionAttribute("1.1.52")>]
 do ()
 
 module internal AssemblyVersionInformation =
-    let [<Literal>] AssemblyTitle = "SQLProvider.MsSqlServer"
-    let [<Literal>] AssemblyProduct = "SQLProvider.MsSqlServer"
-    let [<Literal>] AssemblyDescription = "Type providers for SQL database access to MsSqlServer."
-
-
+    let [<Literal>] AssemblyTitle = "SqlProvider.MsSqlServer"
+    let [<Literal>] AssemblyProduct = "SqlProvider.MsSqlServer"
+    let [<Literal>] AssemblyDescription = "Type providers for SQL database access. Provider for MsSqlServer."
+    let [<Literal>] AssemblyVersion = "1.1.52"
+    let [<Literal>] AssemblyFileVersion = "1.1.52"

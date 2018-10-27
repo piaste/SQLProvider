@@ -1,7 +1,8 @@
 ﻿namespace FSharp.Data.Sql.Common
     
 open System
-open System.Collections.Generic
+open Microsoft.Extensions.Configuration
+open Microsoft.Extensions.Configuration.Xml
 
 module Utilities = 
     
@@ -9,7 +10,6 @@ module Utilities =
     open System.Collections.Concurrent
     open FSharp.Data.Sql
 
-#if !NETSTANDARD
     type TempFile(path:string) =
          member val Path = path with get
          interface IDisposable with 
@@ -23,7 +23,6 @@ module Utilities =
                 File.Delete tempF
             tempF'
         new TempFile(filename)
-#endif
 
     let resolveTuplePropertyName (name:string) (tupleIndex:string ResizeArray) =
         // eg "Item1" -> tupleIndex.[0]
@@ -203,7 +202,6 @@ module ConfigHelpers =
     
     open System
     open System.IO
-#if !NETSTANDARD
     open System.Configuration
 
     let internal getConStringFromConfig isRuntime root (connectionStringName : string) =
@@ -230,18 +228,17 @@ module ConfigHelpers =
                 | Some(configFilePath) ->
                     use tempFile = Utilities.tempFile "config"
                     File.Copy(configFilePath, tempFile.Path)
-                    let fileMap = new ExeConfigurationFileMap(ExeConfigFilename = tempFile.Path)
-                    let config = ConfigurationManager.OpenMappedExeConfiguration(fileMap, ConfigurationUserLevel.None)
-                    match config.ConnectionStrings.ConnectionStrings.[connectionStringName] with
+                    let config = ConfigurationBuilder()
+                                    .AddXmlFile(path = tempFile.Path)
+                                    .Build()
+                    match config.GetConnectionString(connectionStringName) with
                     | null -> ""
-                    | a -> a.ConnectionString
+                    | cnn -> cnn
                 | None -> ""
-#endif
 
     let cachedConStrings = System.Collections.Concurrent.ConcurrentDictionary<string, string>()
 
     let tryGetConnectionString isRuntime root (connectionStringName:string) (connectionString:string) =
-#if !NETSTANDARD
         if String.IsNullOrWhiteSpace(connectionString)
         then
             match isRuntime with
@@ -250,7 +247,6 @@ module ConfigHelpers =
                     let fromFile = getConStringFromConfig isRuntime root connectionStringName
                     fromFile)
         else
-#endif
             connectionString
 
 module SchemaProjections = 
@@ -518,7 +514,7 @@ module Sql =
     let dbUnboxWithDefault<'a> def (v:obj) : 'a = 
         if Convert.IsDBNull(v) then def else unbox v
 
-    let connect (con:IDbConnection) f =
+    let connect (con: #IDbConnection) f =
         if con.State <> ConnectionState.Open then con.Open()
         let result = f con
         con.Close(); result
