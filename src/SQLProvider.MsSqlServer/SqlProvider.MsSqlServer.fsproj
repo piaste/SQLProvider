@@ -6,10 +6,6 @@
     <Name>FSharp.Data.SqlProvider.MsSqlServer</Name>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="paket.references" />
-    <None Include="paket.template" />
-
-    <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Providers.MsSqlServer.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />

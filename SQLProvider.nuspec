@@ -1,38 +1,20 @@
-<?xml version="1.0" encoding="utf-8"?>
-<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
-  <metadata minClientVersion="2.12">
-    <id>@project@</id>
-    <version>@build.number@</version>
-    <authors>@authors@</authors>
-    <owners>@authors@</owners>
-    <licenseUrl>http://github.com/fsprojects/SQLProvider/blob/master/LICENSE.md</licenseUrl>
-    <projectUrl>http://fsprojects.github.io/SQLProvider</projectUrl>
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>FSharp.Data.SqlProvider</id>
+    <version>1.1.52</version>
+    <authors>piaste</authors>
+    <owners>piaste</owners>
+    <licenseUrl>http://LICENSE_URL_HERE_OR_DELETE_THIS_LINE</licenseUrl>
+    <projectUrl>http://PROJECT_URL_HERE_OR_DELETE_THIS_LINE</projectUrl>
+    <iconUrl>http://ICON_URL_HERE_OR_DELETE_THIS_LINE</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <summary>@summary@</summary>
-    <description>@description@</description>
-    <releaseNotes>@releaseNotes@</releaseNotes>
-    <copyright>Copyright 2015-2017</copyright>
-    <tags>@tags@</tags>
+    <description>Package description</description>
+    <releaseNotes>Summary of changes made in this release of the package.</releaseNotes>
+    <copyright>Copyright 2018</copyright>
+    <tags>Tag1 Tag2</tags>
     <dependencies>
-      <group targetFramework=".NETFramework4.5.1"/>
-      <group targetFramework=".NETStandard2.0">
-		<dependency id="NETStandard.Library" version="2.0" />
-		<dependency id="FSharp.Core" version="3.1.2.5" />
-		<dependency id="System.Runtime" version="4.3" />
-		<dependency id="System.Runtime.Loader" version="4.3" />
-		<dependency id="System.Runtime.Serialization.Primitives" version="4.3" />
-		<dependency id="System.Runtime.Serialization.Formatters" version="4.3" />
-		<dependency id="System.IO" version="4.3" />
-		<dependency id="System.Console" version="4.3" />
-		<dependency id="System.Reflection" version="4.3" />
-		<dependency id="System.Reflection.TypeExtensions" version="4.3" />
-		<dependency id="System.Data.SqlClient" version="4.4" />
-		<dependency id="System.Data.Common" version="4.3" />
-      </group>
-	</dependencies>
+      <dependency id="SQLProvider.Common" version="1.0.0" />
+    </dependencies>
   </metadata>
-  <files>
-    <file src="**/*.dll" exclude="**/net45/FSharp.Core.dll" />
-    <file src="**/*.deps.json" />
-  </files>
 </package>

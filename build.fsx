@@ -78,7 +78,7 @@ Target.create "AssemblyInfo" (fun _ ->
       | "SQLProvider.Common" -> "Common support library."
       | "SQLProvider.DesignTime" -> "Design-time component."
       | "SQLProvider.Runtime" -> "Runtime component."
-      | providerName -> "Provider for " + (providerName.Substring("SQLProvider.".Length)) + "."
+      | providerName when providerName.StartsWith "SQLProvider." -> "Provider for " + (providerName.Substring("SQLProvider.".Length)) + "."
 
     AssemblyInfoFile.create 
         fileName

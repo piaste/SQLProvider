@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+  <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\netfx.props" />
+  <PropertyGroup>
+    <DefineConstants>NETSTANDARD;NO_GENERATIVE</DefineConstants>
+    <OutputPath>..\..\bin</OutputPath>
+    
+    <AssemblyName>FSharp.Data.SqlProvider</AssemblyName>
+    <Name>FSharp.Data.SqlProvider</Name>
+    
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
+    
+    <OutputType>Library</OutputType>
+    <TargetFrameworks>netstandard2.0</TargetFrameworks>
+    <Optimize>true</Optimize>
+    <Tailcalls>true</Tailcalls>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Use an explicit nuspec to allow us to specify "references", the metadata properties at https://docs.microsoft.com/en-us/dotnet/core/tools/csproj#nuget-metadata-properties don't allow this --> 
+    <NuspecFile>../../SQLProvider.nuspec</NuspecFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="paket.references" />
+    <None Include="paket.template" />
+
+    <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="SqlRuntime.QueryExpression.fs" />
+    <Compile Include="SqlRuntime.Linq.fs" />
+    <Compile Include="SqlRuntime.Async.fs" />
+    <Compile Include="SqlRuntime.DataContext.fs" />
+    <Compile Include="SqlDesignTime.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SQLProvider.Common\SqlProvider.Common.fsproj" />
+    <ProjectReference Include="..\SQLProvider.Firebird\SqlProvider.Firebird.fsproj" />
+    <ProjectReference Include="..\SQLProvider.MSAccess\SqlProvider.MSAccess.fsproj" />
+    <ProjectReference Include="..\SQLProvider.MySQL\SqlProvider.MySQL.fsproj" />
+    <ProjectReference Include="..\SQLProvider.Odbc\SqlProvider.Odbc.fsproj" />
+    <ProjectReference Include="..\SQLProvider.Oracle\SqlProvider.Oracle.fsproj" />
+    <ProjectReference Include="..\SQLProvider.PostgreSQL\SqlProvider.PostgreSQL.fsproj" />
+    <ProjectReference Include="..\SQLProvider.SQLite\SqlProvider.SQLite.fsproj" />
+    <ProjectReference Include="..\SQLProvider.MsSqlServer\SqlProvider.MsSqlServer.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- These files are the facades necessary to run .NET Standard 2.0 components on .NET Framework 4.6.1 (.NET Framework 4.7 will -->
+    <!-- come with these facades included). Because the type provider is a .NET Standard 2.0 component, the deployment of the type -->
+    <!--  provider must include these facade DLLs if it is to run hosted inside an F# compiler executing using  .NET Framework 4.6.1 or Mono 5.0. -->
+    <None Condition="Exists('..\..\packages\NETStandard.Library.NETFramework\build\net461\lib\netstandard.dll')" Include="..\..\packages\NETStandard.Library.NETFramework\build\net461\lib\netstandard.dll">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Condition="Exists('..\..\packages\NETStandard.Library.NETFramework\build\net461\lib\System.Reflection.dll')" Include="..\..\packages\NETStandard.Library.NETFramework\build\net461\lib\System.Reflection.dll">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Condition="Exists('..\..\packages\NETStandard.Library.NETFramework\build\net461\lib\System.Runtime.dll')" Include="..\..\packages\NETStandard.Library.NETFramework\build\net461\lib\System.Runtime.dll">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>  
+  </ItemGroup>
+  <Import Project="..\..\.paket\Paket.Restore.targets" />
+</Project>

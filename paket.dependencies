@@ -1,10 +1,10 @@
 source https://nuget.org/api/v2
-frameworks net461, netcoreapp2.1, netstandard2.0
+frameworks net461, netstandard2.0
 storage none
 
 // Common dependencies
 nuget FSharp.Core
-nuget NETStandard.Library.NETFramework framework:net461 , copy_content_to_output_dir:preserve_newest
+nuget NETStandard.Library.NETFramework framework:net461, copy_content_to_output_dir:preserve_newest
 
 nuget FSharp.Compiler.Service
 nuget Microsoft.SourceLink.GitHub

@@ -1,6 +1,7 @@
 FSharp.Core
-System.Data.SqlClient
 Microsoft.SourceLink.GitHub
 NETStandard.Library.NETFramework
 
-System.Data.Odbc
+System.Data.SqlClient
+
+// System.Data.Odbc

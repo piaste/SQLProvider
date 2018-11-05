@@ -6,10 +6,6 @@
     <Name>FSharp.Data.SqlProvider.MySQL</Name>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="paket.references" />
-    <None Include="paket.template" />
-
-    <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Providers.MySQL.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />

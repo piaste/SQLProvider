@@ -66,9 +66,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.MSAccess", "src
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Odbc", "src\SQLProvider.Odbc\SqlProvider.Odbc.fsproj", "{295EBD6B-6D62-4A81-9F76-0B5B2A0E8E3D}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Runtime", "src\SQLProvider.Runtime\SqlProvider.Runtime.fsproj", "{DFF1990C-A482-488A-B03A-9A268C5C1CB0}"
-EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.DesignTime", "src\SQLProvider.DesignTime\SqlProvider.DesignTime.fsproj", "{9FF31FD6-DBBE-498F-9B14-72CED01D3FD5}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Runtime", "src\SQLProvider\SqlProvider.fsproj", "{DFF1990C-A482-488A-B03A-9A268C5C1CB0}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Firebird", "src\SQLProvider.Firebird\SqlProvider.Firebird.fsproj", "{71CC5228-53BA-42B9-92E8-848FE9B601E8}"
 EndProject

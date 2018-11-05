@@ -18,7 +18,12 @@
     <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <Configuration></Configuration>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="paket.references" />
+    <Compile Include="AssemblyInfo.fs" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SQLProvider.Common\SqlProvider.Common.fsproj" />
   </ItemGroup>

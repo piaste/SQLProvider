@@ -25,4 +25,14 @@ description
     Type providers for SQL database access.
 include-pdbs
     true
-
+include-referenced-projects 
+    true    
+excludeddependencies
+    SQLProvider.Firebird
+    SQLProvider.MSAccess
+    SQLProvider.MsSqlServer
+    SQLProvider.MySQL
+    SQLProvider.Odbc
+    SQLProvider.Oracle
+    SQLProvider.PostgreSQL
+    SQLProvider.SQLite
