@@ -13,7 +13,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		paket.lock = paket.lock
 		ProviderProperties.props = ProviderProperties.props
 		README.md = README.md
-		SQLProvider.nuspec = SQLProvider.nuspec
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{D383A6BC-FD4A-4C9C-99CA-5AE5C8A7B261}"
@@ -58,15 +57,15 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.PostgreSQL", "s
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Common", "src\SQLProvider.Common\SqlProvider.Common.fsproj", "{BEA0CA4F-33AC-4469-B39B-61CAE1971312}"
 EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "SqlProvider.Tests", "tests\SqlProvider.Tests\SqlProvider.Tests.fsproj", "{B5E56E66-5EE2-4C81-A242-9973AAAE9C99}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Tests", "tests\SqlProvider.Tests\SqlProvider.Tests.fsproj", "{B5E56E66-5EE2-4C81-A242-9973AAAE9C99}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.SQLServer", "src\SQLProvider.MsSqlServer\SqlProvider.MsSqlServer.fsproj", "{5440DFF6-EE2E-4F79-9F78-27FF3BC8EFE0}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.MsSqlServer", "src\SQLProvider.MsSqlServer\SqlProvider.MsSqlServer.fsproj", "{5440DFF6-EE2E-4F79-9F78-27FF3BC8EFE0}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.MSAccess", "src\SQLProvider.MSAccess\SqlProvider.MSAccess.fsproj", "{947F2B9A-69D5-429A-9A4E-E4ADEC8E555D}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Odbc", "src\SQLProvider.Odbc\SqlProvider.Odbc.fsproj", "{295EBD6B-6D62-4A81-9F76-0B5B2A0E8E3D}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Runtime", "src\SQLProvider\SqlProvider.fsproj", "{DFF1990C-A482-488A-B03A-9A268C5C1CB0}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider", "src\SQLProvider\SqlProvider.fsproj", "{DFF1990C-A482-488A-B03A-9A268C5C1CB0}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Firebird", "src\SQLProvider.Firebird\SqlProvider.Firebird.fsproj", "{71CC5228-53BA-42B9-92E8-848FE9B601E8}"
 EndProject
@@ -110,10 +109,6 @@ Global
 		{DFF1990C-A482-488A-B03A-9A268C5C1CB0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DFF1990C-A482-488A-B03A-9A268C5C1CB0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DFF1990C-A482-488A-B03A-9A268C5C1CB0}.Release|Any CPU.Build.0 = Release|Any CPU
-		{9FF31FD6-DBBE-498F-9B14-72CED01D3FD5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9FF31FD6-DBBE-498F-9B14-72CED01D3FD5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9FF31FD6-DBBE-498F-9B14-72CED01D3FD5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9FF31FD6-DBBE-498F-9B14-72CED01D3FD5}.Release|Any CPU.Build.0 = Release|Any CPU
 		{71CC5228-53BA-42B9-92E8-848FE9B601E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{71CC5228-53BA-42B9-92E8-848FE9B601E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{71CC5228-53BA-42B9-92E8-848FE9B601E8}.Release|Any CPU.ActiveCfg = Release|Any CPU

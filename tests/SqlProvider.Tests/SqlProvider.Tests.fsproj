@@ -38,13 +38,5 @@
     </None>
     <None Include="paket.references" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="../../src/SQLProvider.Common/SqlProvider.Common.fsproj" />
-    <ProjectReference Include="../../src/SQLProvider.MSAccess/SqlProvider.MSAccess.fsproj" />
-    <ProjectReference Include="../../src/SQLProvider.MsSqlServer/SqlProvider.MsSqlServer.fsproj" />
-    <ProjectReference Include="../../src/SQLProvider.Odbc/SqlProvider.Odbc.fsproj" />
-    <ProjectReference Include="../../src/SQLProvider.PostgreSQL/SqlProvider.PostgreSQL.fsproj" />
-    <ProjectReference Include="../../src/SQLProvider/SqlProvider.fsproj" />
-  </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

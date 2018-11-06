@@ -12,14 +12,6 @@ open FSharp.Data.Sql.Common
 open FSharp.Data.Sql
 open ProviderImplementation.ProvidedTypes
 
-type internal SqlRuntimeInfo (config : TypeProviderConfig) =
-    let runtimeAssembly = 
-        Assembly.GetExecutingAssembly()
-        //let r = Reflection.tryLoadAssemblyFrom "" [||] [config.RuntimeAssembly]
-        //match r with
-        //| Choice1Of2(assembly) -> assembly
-        //| Choice2Of2(paths, errors) -> Assembly.GetExecutingAssembly()
-    member __.RuntimeAssembly = runtimeAssembly 
 
 module internal DesignTimeCache = 
     let cache = System.Collections.Concurrent.ConcurrentDictionary<_,ProvidedTypeDefinition>()
@@ -31,7 +23,7 @@ type internal ParameterValue =
 [<TypeProvider>]
 type SqlTypeProvider(config: TypeProviderConfig) as this =     
     inherit TypeProviderForNamespaces(config)
-    let sqlRuntimeInfo = SqlRuntimeInfo(config)
+    let runtimeAssembly = Assembly.GetExecutingAssembly()
     let mySaveLock = new Object();
     
     let [<Literal>] FSHARP_DATA_SQL = "FSharp.Data.Sql"
@@ -55,7 +47,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
             | cs -> cs
                     
         let rootType, prov, con = 
-            let rootType = ProvidedTypeDefinition(sqlRuntimeInfo.RuntimeAssembly,FSHARP_DATA_SQL,rootTypeName,Some typeof<obj>, isErased=true)
+            let rootType = ProvidedTypeDefinition(runtimeAssembly, FSHARP_DATA_SQL, rootTypeName, Some typeof<obj>, isErased=true)
             let prov = ProviderBuilder.createProvider dbVendor resolutionPath config.ReferencedAssemblies config.RuntimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary
             match prov.GetSchemaCache().IsOffline with
             | false ->
@@ -911,7 +903,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
         | None -> ()
         rootType
     
-    let paramSqlType = ProvidedTypeDefinition(sqlRuntimeInfo.RuntimeAssembly, FSHARP_DATA_SQL, "SqlDataProvider", Some(typeof<obj>), isErased=true)
+    let paramSqlType = ProvidedTypeDefinition(runtimeAssembly, FSHARP_DATA_SQL, "SqlDataProvider", Some(typeof<obj>), isErased=true)
     
     let conString = ProvidedStaticParameter("ConnectionString",typeof<string>, "")
     let connStringName = ProvidedStaticParameter("ConnectionStringName", typeof<string>, "")    

@@ -13,16 +13,53 @@ open System.Collections.Concurrent
 module ProviderBuilder =
     open FSharp.Data.Sql.Providers
 
+    // These wrappers exist to prevent runtime errors when running createProvider without 
+    // the dependencies for the unused vendors
+
+    let createMSSqlServerProvider(contextSchemaPath, tableNames) = 
+              MSSqlServerProvider(contextSchemaPath, tableNames)
+              :> ISqlProvider
+
+    let createSQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary) = 
+              SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary)
+              :> ISqlProvider
+
+    let createPostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies) = 
+              PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
+              :> ISqlProvider
+
+    let createMySqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies) = 
+              MySqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
+              :> ISqlProvider
+
+    let createOracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames) = 
+              OracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames)
+              :> ISqlProvider
+
+    let createMSAccessProvider(contextSchemaPath) = 
+              MSAccessProvider(contextSchemaPath)
+              :> ISqlProvider
+
+    let createOdbcProvider(contextSchemaPath, odbcquote) = 
+              OdbcProvider(contextSchemaPath, odbcquote)
+              :> ISqlProvider
+
+    let createFirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, odbcquote) = 
+              FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, odbcquote)
+              :> ISqlProvider
+                           
+
     let createProvider vendor resolutionPath referencedAssemblies runtimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary =
+           
         match vendor with
-        | DatabaseProviderTypes.MSSQLSERVER -> MSSqlServerProvider(contextSchemaPath, tableNames) :> ISqlProvider
-        | DatabaseProviderTypes.SQLITE -> SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary) :> ISqlProvider
-        | DatabaseProviderTypes.POSTGRESQL -> PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies) :> ISqlProvider
-        | DatabaseProviderTypes.MYSQL -> MySqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies) :> ISqlProvider
-        | DatabaseProviderTypes.ORACLE -> OracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames) :> ISqlProvider
-        | DatabaseProviderTypes.MSACCESS -> MSAccessProvider(contextSchemaPath) :> ISqlProvider
-        | DatabaseProviderTypes.ODBC -> OdbcProvider(contextSchemaPath, odbcquote) :> ISqlProvider
-        | DatabaseProviderTypes.FIREBIRD -> FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, odbcquote) :> ISqlProvider
+        | DatabaseProviderTypes.MSSQLSERVER -> createMSSqlServerProvider(contextSchemaPath, tableNames)
+        | DatabaseProviderTypes.SQLITE      -> createSQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary) 
+        | DatabaseProviderTypes.POSTGRESQL  -> createPostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
+        | DatabaseProviderTypes.MYSQL       -> createMySqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
+        | DatabaseProviderTypes.ORACLE      -> createOracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames)
+        | DatabaseProviderTypes.MSACCESS    -> createMSAccessProvider(contextSchemaPath)
+        | DatabaseProviderTypes.ODBC        -> createOdbcProvider(contextSchemaPath, odbcquote)
+        | DatabaseProviderTypes.FIREBIRD    -> createFirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, odbcquote)
         | _ -> failwith ("Unsupported database provider: " + vendor.ToString())
 
 type public SqlDataContext (typeName, connectionString:string, providerType, resolutionPath, referencedAssemblies, runtimeAssembly, owner, caseSensitivity, tableNames, contextSchemaPath, odbcquote, sqliteLibrary, transactionOptions, commandTimeout:Option<int>, sqlOperationsInSelect) =
@@ -43,7 +80,7 @@ type public SqlDataContext (typeName, connectionString:string, providerType, res
                     prov.GetTables(con,caseSensitivity) |> ignore
                     if (providerType <> DatabaseProviderTypes.MSACCESS && providerType.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close()
                 prov)
-
+                
     let initCallSproc (dc:ISqlDataContext) (def:RunTimeSprocDefinition) (values:obj array) (con:IDbConnection) (com:IDbCommand) =
         
         if (providerType <> DatabaseProviderTypes.SQLITE) then 

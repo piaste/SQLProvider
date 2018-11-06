@@ -1,4 +1,7 @@
 FSharp.Core
 
 group Testing
-    NUnit
+    NUnit    
+    FSharp.Data.SQLProvider
+    FSharp.Data.SQLProvider.PostgreSQL
+    FSharp.Data.SQLProvider.MsSqlServer

@@ -1,6 +1,5 @@
 source https://nuget.org/api/v2
 frameworks net461, netstandard2.0
-storage none
 
 // Common dependencies
 nuget FSharp.Core
@@ -51,7 +50,14 @@ github Thorium/Linq.Expression.Optimizer src/Code/ExpressionOptimizer.fs
 group Testing
     source https://nuget.org/api/v2
     framework net461, netcoreapp2.1
+    
     nuget NUnit
+    
+    source ./bin/
+    
+    nuget FSharp.Data.SqlProvider
+    nuget FSharp.Data.SqlProvider.PostgreSQL
+    nuget FSharp.Data.SqlProvider.MsSqlServer
 
 group Build
     source https://nuget.org/api/v2

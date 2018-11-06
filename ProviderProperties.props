@@ -19,6 +19,7 @@
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <Configuration></Configuration>
+    <!--<NuspecFile>$(AssemblyName).nuspec</NuspecFile>-->
   </PropertyGroup>
   <ItemGroup>
     <None Include="paket.references" />
