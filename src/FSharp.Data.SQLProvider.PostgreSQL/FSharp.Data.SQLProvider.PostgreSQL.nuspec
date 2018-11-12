@@ -1,15 +1,15 @@
 <?xml version="1.0"?>
 <package >
   <metadata>
-    <id>FSharp.Data.SqlProvider</id>
-    <version>1.1.52</version>
+    <id>FSharp.Data.SQLProvider.PostgreSQL</id>
+    <version>2.0.0</version>
     <authors>piaste</authors>
     <owners>piaste</owners>
     <licenseUrl>http://LICENSE_URL_HERE_OR_DELETE_THIS_LINE</licenseUrl>
     <projectUrl>http://PROJECT_URL_HERE_OR_DELETE_THIS_LINE</projectUrl>
     <iconUrl>http://ICON_URL_HERE_OR_DELETE_THIS_LINE</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>Package description</description>
+    <description>Type provider for access to PostgreSQL databases.</description>
     <releaseNotes>Summary of changes made in this release of the package.</releaseNotes>
     <copyright>Copyright 2018</copyright>
     <tags>Tag1 Tag2</tags>
@@ -17,23 +17,24 @@
     <dependencies>
       <group targetFramework="netstandard2.0">
         <dependency id="FSharp.Core" version="4.3.4" />
-        <dependency id="FSharp.Data.SQLProvider.Common" version="1.0.0" />
+        <dependency id="FSharp.Data.SQLProvider" version="2.0.0" />
+        <dependency id="Npgsql" version="4.0.3" />
+        <dependency id="Npgsql.Json.NET" version="1.0" />
+        <dependency id="Npgsql.LegacyPostGIS" version="1.0" />
       </group>
     </dependencies>
     <!-- Control which references are added explicitly --> 
     <references>
-      <reference file="FSharp.Data.SqlProvider.dll" />
+      <reference file="FSharp.Data.SQLProvider.PostgreSQL.dll" />
     </references>
   </metadata>
-  <files>
-  
-    <!-- Use the same component as the TPDTC, placed in the usual locations --> 
-    <file src=".\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.Common.dll" target="lib/netstandard2.0" />
-    <file src=".\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.Common.pdb" target="lib/netstandard2.0" />
-    <!-- <file src=".\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.Common.xml" target="lib/netstandard2.0" /> -->
-    <file src=".\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.dll" target="lib/netstandard2.0" />
-    <file src=".\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.pdb" target="lib/netstandard2.0" />
-    <file src=".\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.xml" target="lib/netstandard2.0" />
+  <files>  
+    <!-- <file src="../FSharp.Data.SQLProvider\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.dll" target="lib/netstandard2.0" /> -->
+    <!-- <file src="../FSharp.Data.SQLProvider\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.pdb" target="lib/netstandard2.0" /> -->
+    <!-- <file src="../FSharp.Data.SQLProvider\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.xml" target="lib/netstandard2.0" /> -->
+    <file src=".\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.PostgreSQL.dll" target="lib/netstandard2.0" />
+    <file src=".\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.PostgreSQL.pdb" target="lib/netstandard2.0" />
+    <!-- <file src=".\bin\Release\netstandard2.0\FSharp.Data.SqlProvider.PostgreSQL.xml" target="lib/netstandard2.0" /> -->
 
     <!-- Add these facades to allow .NET 4.6.x-based tooling to load the component, see docs at https://github.com/fsprojects/FSharp.TypeProviders.SDK/ -->
     <file src=".\bin\Release\netstandard2.0\netstandard.dll" target="lib/netstandard2.0" />

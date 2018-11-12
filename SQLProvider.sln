@@ -53,7 +53,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Scripts", "Scripts", "{76C3
 		src\scripts\PostgresInspector.fsx = src\scripts\PostgresInspector.fsx
 	EndProjectSection
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.PostgreSQL", "src\SQLProvider.PostgreSQL\SqlProvider.PostgreSQL.fsproj", "{A74CBBFF-625C-461D-A5B3-AD9088B810A5}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "FSharp.Data.SqlProvider.PostgreSQL", "src\FSharp.Data.SQLProvider.PostgreSQL\FSharp.Data.SqlProvider.PostgreSQL.fsproj", "{A74CBBFF-625C-461D-A5B3-AD9088B810A5}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Tests", "tests\SqlProvider.Tests\SqlProvider.Tests.fsproj", "{B5E56E66-5EE2-4C81-A242-9973AAAE9C99}"
 EndProject
@@ -63,7 +63,7 @@ Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.MSAccess", "src
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Odbc", "src\SQLProvider.Odbc\SqlProvider.Odbc.fsproj", "{295EBD6B-6D62-4A81-9F76-0B5B2A0E8E3D}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider", "src\SQLProvider\SqlProvider.fsproj", "{DFF1990C-A482-488A-B03A-9A268C5C1CB0}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "FSharp.Data.SqlProvider", "src\FSharp.Data.SQLProvider\FSharp.Data.SqlProvider.fsproj", "{DFF1990C-A482-488A-B03A-9A268C5C1CB0}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Firebird", "src\SQLProvider.Firebird\SqlProvider.Firebird.fsproj", "{71CC5228-53BA-42B9-92E8-848FE9B601E8}"
 EndProject

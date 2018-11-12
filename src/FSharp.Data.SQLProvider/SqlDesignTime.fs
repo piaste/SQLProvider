@@ -21,9 +21,8 @@ type internal ParameterValue =
   | Default of Expr
 
 module SqlProvider = 
-  let buildProviderType (providerBuilder : IProviderBuilder, config: TypeProviderConfig, tp: TypeProviderForNamespaces) =     
+  let buildProviderType (runtimeAssembly: Assembly, providerBuilder : IProviderBuilder, config: TypeProviderConfig, tp: TypeProviderForNamespaces) =     
     //inherit TypeProviderForNamespaces(config)
-    let runtimeAssembly = Assembly.GetExecutingAssembly()
     let mySaveLock = new Object();
     
     let FSHARP_DATA_SQL = "FSharp.Data.Sql"

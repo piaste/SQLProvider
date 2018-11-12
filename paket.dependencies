@@ -1,16 +1,22 @@
 source https://nuget.org/api/v2
 frameworks net461, netstandard2.0
+storage none
 
 // Common dependencies
 nuget FSharp.Core
-nuget NETStandard.Library.NETFramework framework:net461, copy_content_to_output_dir:preserve_newest
+nuget NETStandard.Library.NETFramework framework:net461, storage: packages, copy_content_to_output_dir:preserve_newest
 
 nuget FSharp.Compiler.Service
-nuget Microsoft.SourceLink.GitHub
 nuget System.Runtime.Serialization.Formatters
 nuget System.Data.SqlClient
 nuget Microsoft.Extensions.Configuration
 nuget Microsoft.Extensions.Configuration.Xml
+nuget Microsoft.SourceLink.GitHub
+
+// Type provider SDK
+github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fsi
+github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fs
+github Thorium/Linq.Expression.Optimizer src/Code/ExpressionOptimizer.fs
 
 // Provider dependencies
 
@@ -42,22 +48,18 @@ nuget Npgsql.LegacyPostGIS
 // nuget SQLitePCLRaw.bundle_green
 nuget System.Data.SQLite.Core
 
-// Type provider SDK
-github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fsi
-github fsprojects/FSharp.TypeProviders.SDK src/ProvidedTypes.fs
-github Thorium/Linq.Expression.Optimizer src/Code/ExpressionOptimizer.fs
-
 group Testing
     source https://nuget.org/api/v2
     framework net461, netcoreapp2.1
+    storage none
     
     nuget NUnit
     
     source ./bin/
     
-    nuget FSharp.Data.SqlProvider
-    nuget FSharp.Data.SqlProvider.PostgreSQL
-    nuget FSharp.Data.SqlProvider.MsSqlServer
+    nuget FSharp.Data.SqlProvider storage: packages
+    nuget FSharp.Data.SqlProvider.PostgreSQL storage: packages
+    //nuget FSharp.Data.SProvider.MsSqlServer
 
 group Build
     source https://nuget.org/api/v2
@@ -84,6 +86,7 @@ group Build
 group Scripts
     source https://nuget.org/api/v2
     framework netcoreapp2.1
+    storage packages
 
     nuget MySql.Data < 7.0.0
     nuget MySqlConnector

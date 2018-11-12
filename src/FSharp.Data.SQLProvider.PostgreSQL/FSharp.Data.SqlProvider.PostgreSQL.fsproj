@@ -2,8 +2,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <Import Project="..\..\ProviderProperties.props" />
   <PropertyGroup>
-    <AssemblyName>FSharp.Data.SqlProvider.PostgreSQL</AssemblyName>
-    <Name>FSharp.Data.SqlProvider.PostgreSQL</Name>
+    <NuspecFile>Fsharp.Data.SqlProvider.PostgreSQL.nuspec</NuspecFile>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Providers.Postgresql.fs" />

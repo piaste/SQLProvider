@@ -5,6 +5,8 @@
     <DefineConstants>NETSTANDARD;NO_GENERATIVE</DefineConstants>
     <AssemblyName>FSharp.Data.SqlProvider</AssemblyName>
     <Name>FSharp.Data.SqlProvider</Name>    
+    <Version>2.0.0</Version>
+    <Description>Common library for SQL type providers</Description>    
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>    
@@ -14,11 +16,10 @@
     <Tailcalls>true</Tailcalls>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- Use an explicit nuspec to allow us to specify "references", the metadata properties at https://docs.microsoft.com/en-us/dotnet/core/tools/csproj#nuget-metadata-properties don't allow this --> 
-    <NuspecFile>FSharp.Data.SQLProvider.PostgreSQL.nuspec</NuspecFile>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <PackageOutputPath>../../bin</PackageOutputPath>
   </PropertyGroup>
-  <ItemGroup>
-    <None Include="FSharp.Data.SQLProvider.nuspec" />    
+  <ItemGroup>    
     <Compile Include="..\..\paket-files\fsprojects\FSharp.TypeProviders.SDK\src\ProvidedTypes.fsi">
       <Paket>True</Paket>
       <Link>paket-files/ProvidedTypes.fsi</Link>
@@ -33,9 +34,7 @@
     </Compile>
     
     <None Include="paket.references" />
-    <None Include="paket.template" />
-
-    <Compile Include="AssemblyInfo.fs" />
+    
     <Compile Include="Operators.fs" />
     <Compile Include="Utils.fs" />
     <Compile Include="SqlSchema.fs" />

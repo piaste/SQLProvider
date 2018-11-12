@@ -34,7 +34,7 @@ FSharp.Data.Sql.Common.QueryEvents.LinqExpressionEvent |> Event.add (printfn "Ex
 let processId = System.Diagnostics.Process.GetCurrentProcess().Id;
 
 type HR = 
-  FSharp.Data.Sql.SqlDataProvider<
+  FSharp.Data.Sql.SqlDataProvider <
       DatabaseVendor = Common.DatabaseProviderTypes.POSTGRESQL,
       ConnectionString = connStr,
       ResolutionPath=resolutionPath,

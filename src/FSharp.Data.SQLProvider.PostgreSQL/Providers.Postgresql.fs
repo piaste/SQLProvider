@@ -1,4 +1,4 @@
-﻿namespace FSharp.Data.Sql.Providers
+﻿namespace FSharp.Data.Sql
 
 open System
 open System.Collections
@@ -1212,6 +1212,8 @@ open FSharp.Data.Sql
 [<TypeProvider>]
 type PostgreSQLTypeProvider(config: TypeProviderConfig) as this =   
   inherit ProviderImplementation.ProvidedTypes.TypeProviderForNamespaces(config)
+    
+  let runtimeAssembly = System.Reflection.Assembly.GetExecutingAssembly()
 
   let builder = 
     { new Runtime.IProviderBuilder with
@@ -1220,8 +1222,9 @@ type PostgreSQLTypeProvider(config: TypeProviderConfig) as this =
           :> ISqlProvider  
     }
     
-  do FSharp.Data.Sql.SqlProvider.buildProviderType(builder, config, this)
+  do 
+    FSharp.Data.Sql.SqlProvider.buildProviderType(runtimeAssembly, builder, config, this)
   
                             
-[<assembly:TypeProviderAssembly>] 
+[<TypeProviderAssembly>] 
 do()
