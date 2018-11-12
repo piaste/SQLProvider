@@ -16,6 +16,8 @@ open Npgsql
 open NpgsqlTypes
 
 module PostgreSQL =
+   
+
     let mutable schemas = [| "public" |]
 
     
@@ -547,6 +549,7 @@ type PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAsse
               |> Array.filter (not << String.IsNullOrWhiteSpace)                      
 
     interface FSharp.Data.Sql.Common.ISqlProvider with
+        member __.DatabaseProviderType = DatabaseProviderTypes.POSTGRESQL
         member __.GetLockObject() = myLock
         member __.GetTableDescription(con,tableName) = 
             Sql.connect con (fun _ ->
@@ -1202,3 +1205,23 @@ type PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAsse
                 finally
                     con.Close()
             }
+            
+open Microsoft.FSharp.Core.CompilerServices
+open FSharp.Data.Sql
+
+[<TypeProvider>]
+type PostgreSQLTypeProvider(config: TypeProviderConfig) as this =   
+  inherit ProviderImplementation.ProvidedTypes.TypeProviderForNamespaces(config)
+
+  let builder = 
+    { new Runtime.IProviderBuilder with
+        member __.CreateProvider vendor resolutionPath referencedAssemblies runtimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary = 
+          PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
+          :> ISqlProvider  
+    }
+    
+  do FSharp.Data.Sql.SqlProvider.buildProviderType(builder, config, this)
+  
+                            
+[<assembly:TypeProviderAssembly>] 
+do()

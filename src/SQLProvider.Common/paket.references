@@ -1,9 +1,0 @@
-FSharp.Core
-System.Data.SqlClient
-Microsoft.SourceLink.GitHub
-Microsoft.Extensions.Configuration
-Microsoft.Extensions.Configuration.Xml
-
-File: ProvidedTypes.fsi
-File: ProvidedTypes.fs
-File: ExpressionOptimizer.fs

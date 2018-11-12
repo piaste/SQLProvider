@@ -20,13 +20,13 @@ type internal ParameterValue =
   | UserProvided of string * string * Type
   | Default of Expr
 
-[<TypeProvider>]
-type SqlTypeProvider(config: TypeProviderConfig) as this =     
-    inherit TypeProviderForNamespaces(config)
+module SqlProvider = 
+  let buildProviderType (providerBuilder : IProviderBuilder, config: TypeProviderConfig, tp: TypeProviderForNamespaces) =     
+    //inherit TypeProviderForNamespaces(config)
     let runtimeAssembly = Assembly.GetExecutingAssembly()
     let mySaveLock = new Object();
     
-    let [<Literal>] FSHARP_DATA_SQL = "FSharp.Data.Sql"
+    let FSHARP_DATA_SQL = "FSharp.Data.Sql"
     let empty = fun (_:Expr list) -> <@@ () @@>
     
     let createTypes(connectionString, conStringName,dbVendor,resolutionPath,individualsAmount,useOptionTypes,owner,caseSensitivity, tableNames, contextSchemaPath, odbcquote, sqliteLibrary, rootTypeName) = 
@@ -48,11 +48,11 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                     
         let rootType, prov, con = 
             let rootType = ProvidedTypeDefinition(runtimeAssembly, FSHARP_DATA_SQL, rootTypeName, Some typeof<obj>, isErased=true)
-            let prov = ProviderBuilder.createProvider dbVendor resolutionPath config.ReferencedAssemblies config.RuntimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary
+            let prov = providerBuilder.CreateProvider dbVendor resolutionPath config.ReferencedAssemblies config.RuntimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary
             match prov.GetSchemaCache().IsOffline with
             | false ->
                 let con = prov.CreateConnection conString
-                this.Disposing.Add(fun _ -> 
+                tp.Disposing.Add(fun _ -> 
                     if con <> Unchecked.defaultof<IDbConnection> && dbVendor <> DatabaseProviderTypes.MSACCESS then
                         con.Dispose())
                 con.Open()
@@ -110,7 +110,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
         let getTableData name = tableColumns.Force().[name].Force()
         let serviceType = ProvidedTypeDefinition( "dataContext", None, isErased=true)
         let transactionOptions = TransactionOptions.Default
-        let designTimeDc = SqlDataContext(rootTypeName, conString, dbVendor, resolutionPath, config.ReferencedAssemblies, config.RuntimeAssembly, owner, caseSensitivity, tableNames, contextSchemaPath, odbcquote, sqliteLibrary, transactionOptions, None, SelectOperations.DotNetSide)
+        let designTimeDc = SqlDataContext(providerBuilder, rootTypeName, conString, dbVendor, resolutionPath, config.ReferencedAssemblies, config.RuntimeAssembly, owner, caseSensitivity, tableNames, contextSchemaPath, odbcquote, sqliteLibrary, transactionOptions, None, SelectOperations.DotNetSide)
         // first create all the types so we are able to recursively reference them in each other's definitions
         let baseTypes =
             lazy
@@ -133,7 +133,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
                             let errInfo = 
                                 ProvidedProperty("PossibleError", typeof<String>, getterCode = fun _ -> <@@ possibleError @@>)
                             errInfo.AddXmlDocDelayed(fun () -> 
-                                this.Invalidate()
+                                tp.Invalidate()
                                 "You have possible configuration error. \r\n " + possibleError)
                             serviceType.AddMember errInfo
                        else                
@@ -860,7 +860,7 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
 
                     // **important**: contextSchemaPath is empty because we do not want 
                     // to load the schema cache from (the developer's) local filesystem in production
-                    SqlDataContext(typeName = rootTypeName, connectionString = %%actualArgs.[0], providerType = dbVendor, 
+                    SqlDataContext(providerBuilder, typeName = rootTypeName, connectionString = %%actualArgs.[0], providerType = dbVendor, 
                                     resolutionPath = %%actualArgs.[1], referencedAssemblies = %%referencedAssemblyExpr, 
                                     runtimeAssembly = resolutionFolder, owner = owner, caseSensitivity = caseSensitivity,
                                     tableNames = tableNames, contextSchemaPath = "", odbcquote = odbcquote, 
@@ -966,9 +966,6 @@ type SqlTypeProvider(config: TypeProviderConfig) as this =
     do paramSqlType.AddXmlDoc helpText               
     
     // add them to the namespace    
-    do this.AddNamespace(FSHARP_DATA_SQL, [paramSqlType])
-                            
-[<assembly:TypeProviderAssembly>] 
-do()
+    do tp.AddNamespace(FSHARP_DATA_SQL, [paramSqlType])
 
 

@@ -10,67 +10,79 @@ open FSharp.Data.Sql.Common
 open FSharp.Data.Sql.Schema
 open System.Collections.Concurrent
 
-module ProviderBuilder =
-    open FSharp.Data.Sql.Providers
+//module ProviderBuilder =
+//    open FSharp.Data.Sql.Providers
 
-    // These wrappers exist to prevent runtime errors when running createProvider without 
-    // the dependencies for the unused vendors
+//    // These wrappers exist to prevent runtime errors when running createProvider without 
+//    // the dependencies for the unused vendors
 
-    let createMSSqlServerProvider(contextSchemaPath, tableNames) = 
-              MSSqlServerProvider(contextSchemaPath, tableNames)
-              :> ISqlProvider
+//    let createMSSqlServerProvider(contextSchemaPath, tableNames) = 
+//              MSSqlServerProvider(contextSchemaPath, tableNames)
+//              :> ISqlProvider
 
-    let createSQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary) = 
-              SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary)
-              :> ISqlProvider
+//    let createSQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary) = 
+//              SQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary)
+//              :> ISqlProvider
 
-    let createPostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies) = 
-              PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
-              :> ISqlProvider
+//    let createPostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies) = 
+//              PostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
+//              :> ISqlProvider
 
-    let createMySqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies) = 
-              MySqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
-              :> ISqlProvider
+//    let createMySqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies) = 
+//              MySqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
+//              :> ISqlProvider
 
-    let createOracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames) = 
-              OracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames)
-              :> ISqlProvider
+//    let createOracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames) = 
+//              OracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames)
+//              :> ISqlProvider
 
-    let createMSAccessProvider(contextSchemaPath) = 
-              MSAccessProvider(contextSchemaPath)
-              :> ISqlProvider
+//    let createMSAccessProvider(contextSchemaPath) = 
+//              MSAccessProvider(contextSchemaPath)
+//              :> ISqlProvider
 
-    let createOdbcProvider(contextSchemaPath, odbcquote) = 
-              OdbcProvider(contextSchemaPath, odbcquote)
-              :> ISqlProvider
+//    let createOdbcProvider(contextSchemaPath, odbcquote) = 
+//              OdbcProvider(contextSchemaPath, odbcquote)
+//              :> ISqlProvider
 
-    let createFirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, odbcquote) = 
-              FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, odbcquote)
-              :> ISqlProvider
+//    let createFirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, odbcquote) = 
+//              FirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, odbcquote)
+//              :> ISqlProvider
                            
 
-    let createProvider vendor resolutionPath referencedAssemblies runtimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary =
+//    let createProvider vendor resolutionPath referencedAssemblies runtimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary =
            
-        match vendor with
-        | DatabaseProviderTypes.MSSQLSERVER -> createMSSqlServerProvider(contextSchemaPath, tableNames)
-        | DatabaseProviderTypes.SQLITE      -> createSQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary) 
-        | DatabaseProviderTypes.POSTGRESQL  -> createPostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
-        | DatabaseProviderTypes.MYSQL       -> createMySqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
-        | DatabaseProviderTypes.ORACLE      -> createOracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames)
-        | DatabaseProviderTypes.MSACCESS    -> createMSAccessProvider(contextSchemaPath)
-        | DatabaseProviderTypes.ODBC        -> createOdbcProvider(contextSchemaPath, odbcquote)
-        | DatabaseProviderTypes.FIREBIRD    -> createFirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, odbcquote)
-        | _ -> failwith ("Unsupported database provider: " + vendor.ToString())
+//        match vendor with
+//        | DatabaseProviderTypes.MSSQLSERVER -> createMSSqlServerProvider(contextSchemaPath, tableNames)
+//        | DatabaseProviderTypes.SQLITE      -> createSQLiteProvider(resolutionPath, contextSchemaPath, referencedAssemblies, runtimeAssembly, sqliteLibrary) 
+//        | DatabaseProviderTypes.POSTGRESQL  -> createPostgresqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
+//        | DatabaseProviderTypes.MYSQL       -> createMySqlProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies)
+//        | DatabaseProviderTypes.ORACLE      -> createOracleProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, tableNames)
+//        | DatabaseProviderTypes.MSACCESS    -> createMSAccessProvider(contextSchemaPath)
+//        | DatabaseProviderTypes.ODBC        -> createOdbcProvider(contextSchemaPath, odbcquote)
+//        | DatabaseProviderTypes.FIREBIRD    -> createFirebirdProvider(resolutionPath, contextSchemaPath, owner, referencedAssemblies, odbcquote)
+//        | _ -> failwith ("Unsupported database provider: " + vendor.ToString())
 
-type public SqlDataContext (typeName, connectionString:string, providerType, resolutionPath, referencedAssemblies, runtimeAssembly, owner, caseSensitivity, tableNames, contextSchemaPath, odbcquote, sqliteLibrary, transactionOptions, commandTimeout:Option<int>, sqlOperationsInSelect) =
-    let pendingChanges = System.Collections.Concurrent.ConcurrentDictionary<SqlEntity, DateTime>()
+type IProviderBuilder = 
+  abstract member CreateProvider :  vendor: DatabaseProviderTypes
+                                 -> resolutionPath: string
+                                 -> referencedAssemblies: string array
+                                 -> runtimeAssembly: string
+                                 -> owner: string
+                                 -> tableNames: string
+                                 -> contextSchemaPath: string
+                                 -> odbcquote: OdbcQuoteCharacter
+                                 -> sqliteLibrary: SQLiteLibrary
+                                 ->  ISqlProvider
+
+type public SqlDataContext (providerBuilder : IProviderBuilder, typeName, connectionString:string, providerType, resolutionPath, referencedAssemblies, runtimeAssembly, owner, caseSensitivity, tableNames, contextSchemaPath, odbcquote, sqliteLibrary, transactionOptions, commandTimeout:Option<int>, sqlOperationsInSelect) =
+    let pendingChanges = ConcurrentDictionary<SqlEntity, DateTime>()
     static let providerCache = ConcurrentDictionary<string,ISqlProvider>()
     let myLock2 = new Object();
 
     let provider =
         providerCache.GetOrAdd(typeName,
             fun typeName -> 
-                let prov : ISqlProvider = ProviderBuilder.createProvider providerType resolutionPath referencedAssemblies runtimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary
+                let prov : ISqlProvider = providerBuilder.CreateProvider providerType resolutionPath referencedAssemblies runtimeAssembly owner tableNames contextSchemaPath odbcquote sqliteLibrary
                 if not (prov.GetSchemaCache().IsOffline) then
                     use con = prov.CreateConnection(connectionString)
                     con.Open()
@@ -78,7 +90,7 @@ type public SqlDataContext (typeName, connectionString:string, providerType, res
                     // the minimum base set of data available
                     prov.CreateTypeMappings(con)
                     prov.GetTables(con,caseSensitivity) |> ignore
-                    if (providerType <> DatabaseProviderTypes.MSACCESS && providerType.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close()
+                    if (providerType <> DatabaseProviderTypes.MSACCESS) then con.Close()
                 prov)
                 
     let initCallSproc (dc:ISqlDataContext) (def:RunTimeSprocDefinition) (values:obj array) (con:IDbConnection) (com:IDbCommand) =
@@ -185,7 +197,7 @@ type public SqlDataContext (typeName, connectionString:string, providerType, res
                             entity.SetColumnSilent(name, data)
                     entity |> box
 
-            if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close()
+            if (provider.DatabaseProviderType <> DatabaseProviderTypes.MSACCESS) then con.Close()
             entities
 
         member this.CallSprocAsync(def:RunTimeSprocDefinition, retCols:QueryParameter[], values:obj array) =
@@ -213,7 +225,7 @@ type public SqlDataContext (typeName, connectionString:string, providerType, res
                                 entity.SetColumnSilent(name, data)
                         entity
 
-                if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close()
+                if (provider.DatabaseProviderType <> DatabaseProviderTypes.MSACCESS) then con.Close()
                 return entities
             }
 
@@ -238,7 +250,7 @@ type public SqlDataContext (typeName, connectionString:string, providerType, res
             if con.State <> ConnectionState.Open then con.Open()
             use reader = com.ExecuteReader()
             let entity = (this :> ISqlDataContext).ReadEntities(table.FullName, columns, reader) |> Seq.exactlyOne
-            if (provider.GetType() <> typeof<Providers.MSAccessProvider>) then con.Close()
+            if (provider.DatabaseProviderType <> DatabaseProviderTypes.MSACCESS) then con.Close()
             entity
 
         member this.ReadEntities(name: string, columns: ColumnLookup, reader: IDataReader) =

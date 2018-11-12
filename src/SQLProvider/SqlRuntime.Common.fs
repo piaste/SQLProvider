@@ -621,6 +621,8 @@ and ISqlProvider =
     abstract ExecuteSprocCommandAsync : System.Data.Common.DbCommand * QueryParameter[] * QueryParameter[] *  obj[] -> Async<ReturnValueType>
     ///Provider specific lock to do provider specific locking
     abstract GetLockObject : unit -> obj
+    ///Provider type
+    abstract DatabaseProviderType : DatabaseProviderTypes
 
 and SchemaCache =
     { PrimaryKeys   : ConcurrentDictionary<string,string list>

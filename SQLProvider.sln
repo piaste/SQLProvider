@@ -55,8 +55,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Scripts", "Scripts", "{76C3
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.PostgreSQL", "src\SQLProvider.PostgreSQL\SqlProvider.PostgreSQL.fsproj", "{A74CBBFF-625C-461D-A5B3-AD9088B810A5}"
 EndProject
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Common", "src\SQLProvider.Common\SqlProvider.Common.fsproj", "{BEA0CA4F-33AC-4469-B39B-61CAE1971312}"
-EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.Tests", "tests\SqlProvider.Tests\SqlProvider.Tests.fsproj", "{B5E56E66-5EE2-4C81-A242-9973AAAE9C99}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "SqlProvider.MsSqlServer", "src\SQLProvider.MsSqlServer\SqlProvider.MsSqlServer.fsproj", "{5440DFF6-EE2E-4F79-9F78-27FF3BC8EFE0}"
@@ -85,10 +83,6 @@ Global
 		{A74CBBFF-625C-461D-A5B3-AD9088B810A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A74CBBFF-625C-461D-A5B3-AD9088B810A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A74CBBFF-625C-461D-A5B3-AD9088B810A5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{BEA0CA4F-33AC-4469-B39B-61CAE1971312}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{BEA0CA4F-33AC-4469-B39B-61CAE1971312}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{BEA0CA4F-33AC-4469-B39B-61CAE1971312}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{BEA0CA4F-33AC-4469-B39B-61CAE1971312}.Release|Any CPU.Build.0 = Release|Any CPU
 		{B5E56E66-5EE2-4C81-A242-9973AAAE9C99}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{B5E56E66-5EE2-4C81-A242-9973AAAE9C99}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B5E56E66-5EE2-4C81-A242-9973AAAE9C99}.Release|Any CPU.ActiveCfg = Release|Any CPU
